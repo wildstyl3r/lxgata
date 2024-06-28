@@ -1,4 +1,4 @@
-package lxcat
+package golxcat
 
 import (
 	"testing"

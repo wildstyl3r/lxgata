@@ -1,3 +1,3 @@
-module github.com/wildstyl3r/lxcat
+module github.com/wildstyl3r/golxcat
 
 go 1.22.3
