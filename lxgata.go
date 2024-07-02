@@ -8,29 +8,32 @@ import (
 	"strings"
 )
 
-type ProcessType string
+type CollisionType string
 
-const ELASTIC, EFFECTIVE, EXCITATION, ATTACHMENT, IONIZATION, ROTATION ProcessType = "ELASTIC", "EFFECTIVE", "EXCITATION", "ATTACHMENT", "IONIZATION", "ROTATION"
+const ELASTIC, EFFECTIVE, EXCITATION, ATTACHMENT, IONIZATION, ROTATION CollisionType = "ELASTIC", "EFFECTIVE", "EXCITATION", "ATTACHMENT", "IONIZATION", "ROTATION"
 
-// Cross section in [m^2] at energy [eV]
+// Cross section point holds cross section value in [m^2] at energy [eV]
 type CrossSectionPoint struct {
 	Energy, Value float64
 }
 
-type Process struct {
-	Type            ProcessType
-	MassRatio       float64
-	Species         string
+type Collision struct {
+	Type            CollisionType
+	MassRatio       float64 // ratio of electron mass to target particle, if applicable
+	Species         string  // target particle species
 	Data            []CrossSectionPoint
-	Threshold       float64
-	LowerEnergy     float64
-	LowerStatWeight float64
-	UpperEnergy     float64
-	UpperStatWeight float64
-	Info            map[string]string
+	Threshold       float64           // value of energy, below which collision can not occur
+	StatWeightRatio float64           // statistical weight ratio of the upper state to the lower state (for excitations)
+	LowerEnergy     float64           // energy of lower state of rotational process (for rotations)
+	LowerStatWeight float64           // statistical weight of lower state of rotational process (for rotations)
+	UpperEnergy     float64           // energy of upper state of rotational process (for rotations)
+	UpperStatWeight float64           // statistical weight of upper state of rotational process (for rotations)
+	Info            map[string]string // any additional fields found in collision description
 }
 
-func (p *Process) CrossSectionAt(energy float64) float64 {
+// CrossSectionAt calculates cross section at given energy as linear interpolation of piecewise linear cross section function
+// If the energy is below first or beyond last data point, it assumes cross section to be constant at corresponding values
+func (p *Collision) CrossSectionAt(energy float64) float64 {
 	l, r := 0, len(p.Data)
 
 	for c := (l + r) / 2; l+1 < r; c = (l + r) / 2 {
@@ -48,11 +51,11 @@ func (p *Process) CrossSectionAt(energy float64) float64 {
 	}
 }
 
-func (p Process) String() string {
+func (p Collision) String() string {
 	return fmt.Sprintf("Cross section of %v %v. Threshold: %v", p.Species, strings.ToLower(string(p.Type)), p.Threshold)
 }
 
-func LoadCrossSections(fileName string) ([]Process, error) {
+func LoadCrossSections(fileName string) ([]Collision, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
@@ -61,7 +64,7 @@ func LoadCrossSections(fileName string) ([]Process, error) {
 
 	setProcessTypes := map[string]struct{}{string(ELASTIC): {}, string(EFFECTIVE): {}, string(EXCITATION): {}, string(ATTACHMENT): {}, string(IONIZATION): {}, string(ROTATION): {}}
 
-	var processes []Process
+	var collisions []Collision
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -72,13 +75,18 @@ func LoadCrossSections(fileName string) ([]Process, error) {
 		}
 
 		if _, ok := setProcessTypes[tokens[0]]; ok {
-			processType := ProcessType(tokens[0])
+			collisionType := CollisionType(tokens[0])
+
 			scanner.Scan()
 			species, _, _ := strings.Cut(scanner.Text(), " ")
+
 			scanner.Scan()
 			parameters := strings.Fields(strings.Trim(scanner.Text(), " "))
-			massRatio, threshold, lowerEnergy, upperEnergy, lowerStatWeight, upperStatWeight := 0., 0., 0., 0., 0., 0.
-			switch processType {
+
+			var massRatio, threshold, lowerEnergy, upperEnergy, lowerStatWeight, upperStatWeight float64
+			statWeightRatio := 1.
+
+			switch collisionType {
 			case ELASTIC:
 				massRatio, err = strconv.ParseFloat(parameters[0], 64)
 				if err != nil {
@@ -93,6 +101,12 @@ func LoadCrossSections(fileName string) ([]Process, error) {
 				threshold, err = strconv.ParseFloat(parameters[0], 64)
 				if err != nil {
 					return nil, err
+				}
+				if len(parameters) > 1 {
+					statWeightRatio, err = strconv.ParseFloat(parameters[1], 64)
+					if err != nil {
+						return nil, err
+					}
 				}
 			case IONIZATION:
 				threshold, err = strconv.ParseFloat(parameters[0], 64)
@@ -142,22 +156,23 @@ func LoadCrossSections(fileName string) ([]Process, error) {
 				if err != nil {
 					return nil, err
 				}
-				if !(processType == IONIZATION || processType == EXCITATION || processType == ROTATION) || threshold < energy {
+				if !(collisionType == IONIZATION || collisionType == EXCITATION || collisionType == ROTATION) || threshold < energy {
 					data = append(data, CrossSectionPoint{energy, crossSection})
 				}
 				scanner.Scan()
 			}
 
-			if (processType == IONIZATION || processType == EXCITATION || processType == ROTATION) && data[0].Value > 0. {
+			if (collisionType == IONIZATION || collisionType == EXCITATION || collisionType == ROTATION) && data[0].Value > 0. {
 				data = append([]CrossSectionPoint{{threshold, 0.}}, data...)
 			}
 
-			processes = append(processes, Process{
-				Type:            processType,
+			collisions = append(collisions, Collision{
+				Type:            collisionType,
 				MassRatio:       massRatio,
 				Species:         species,
 				Data:            data,
 				Threshold:       threshold,
+				StatWeightRatio: statWeightRatio,
 				LowerEnergy:     lowerEnergy,
 				LowerStatWeight: lowerStatWeight,
 				UpperEnergy:     upperEnergy,
@@ -166,5 +181,5 @@ func LoadCrossSections(fileName string) ([]Process, error) {
 			})
 		}
 	}
-	return processes, nil
+	return collisions, nil
 }
