@@ -1,4 +1,4 @@
-package golxcat
+package lxgata
 
 import (
 	"testing"

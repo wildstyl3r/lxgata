@@ -1,4 +1,4 @@
-package golxcat
+package lxgata
 
 import (
 	"bufio"
@@ -12,6 +12,7 @@ type ProcessType string
 
 const ELASTIC, EFFECTIVE, EXCITATION, ATTACHMENT, IONIZATION, ROTATION ProcessType = "ELASTIC", "EFFECTIVE", "EXCITATION", "ATTACHMENT", "IONIZATION", "ROTATION"
 
+// Cross section in [m^2] at energy [eV]
 type CrossSectionPoint struct {
 	Energy, Value float64
 }
