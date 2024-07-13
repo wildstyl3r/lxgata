@@ -1,3 +1,5 @@
+// Package provides functions to load electron cross sections from files in BOLSIG / LXCat format and to interpolate cross section functions.
+// Energy is measured in electronvolts, cross sections in m^2.
 package lxgata
 
 import (
@@ -22,7 +24,7 @@ type Collision struct {
 	MassRatio       float64 // ratio of electron mass to target particle, if applicable
 	Species         string  // target particle species
 	Data            []CrossSectionPoint
-	Threshold       float64           // value of energy, below which collision can not occur
+	Threshold       float64           // value of energy [eV], below which collision can not occur
 	StatWeightRatio float64           // statistical weight ratio of the upper state to the lower state (for excitations)
 	LowerEnergy     float64           // energy of lower state of rotational process (for rotations)
 	LowerStatWeight float64           // statistical weight of lower state of rotational process (for rotations)
@@ -31,8 +33,8 @@ type Collision struct {
 	Info            map[string]string // any additional fields found in collision description
 }
 
-// CrossSectionAt calculates cross section at given energy as linear interpolation of piecewise linear cross section function
-// If the energy is below first or beyond last data point, it assumes cross section to be constant at corresponding values
+// CrossSectionAt calculates cross section at given energy as linear interpolation of piecewise linear cross section function.
+// If the energy is below first or beyond last data point, it assumes cross section to be constant at corresponding values.
 func (p *Collision) CrossSectionAt(energy float64) float64 {
 	l, r := 0, len(p.Data)
 
