@@ -33,6 +33,8 @@ type Collision struct {
 	Info            map[string]string // any additional fields found in collision description
 }
 
+type Collisions []Collision
+
 // CrossSectionAt calculates cross section at given energy as linear interpolation of piecewise linear cross section function.
 // If the energy is below first or beyond last data point, it assumes cross section to be constant at corresponding values.
 func (p *Collision) CrossSectionAt(energy float64) float64 {
@@ -57,7 +59,7 @@ func (p Collision) String() string {
 	return fmt.Sprintf("Cross section of %v %v. Threshold: %v", p.Species, strings.ToLower(string(p.Type)), p.Threshold)
 }
 
-func LoadCrossSections(fileName string) ([]Collision, error) {
+func LoadCrossSections(fileName string) (Collisions, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
@@ -184,4 +186,12 @@ func LoadCrossSections(fileName string) ([]Collision, error) {
 		}
 	}
 	return collisions, nil
+}
+
+func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
+	var result float64
+	for _, collision := range colls {
+		result += collision.CrossSectionAt(energy)
+	}
+	return result
 }
