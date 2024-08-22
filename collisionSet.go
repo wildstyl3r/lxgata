@@ -11,6 +11,7 @@ import (
 
 type Collisions []Collision
 
+// LoadCrossSections loads cross section data from file in LXCat/BOLSIG format
 func LoadCrossSections(fileName string) (Collisions, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -140,6 +141,7 @@ func LoadCrossSections(fileName string) (Collisions, error) {
 	return collisions, nil
 }
 
+// TotalCrossSectionAt returns total cross section at given energy for all species and processes in collisions set
 func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 	var result float64
 	for _, collision := range colls {
@@ -148,6 +150,19 @@ func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 	return result
 }
 
+// TotalCrossSectionOfKindAt returns summed cross section of given type at given energy for all species and processes in collision set
+func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float64) float64 {
+	var result float64
+	for _, collision := range colls {
+		if collision.Type == t {
+			result += collision.CrossSectionAt(energy)
+		}
+	}
+	return result
+}
+
+// SurplusCrossSection returns sum of maximum values of cross sections over all processes in collision set
+// Can be used to estimate lower bound on mean free path
 func (colls Collisions) SurplusCrossSection() float64 {
 	var result float64
 	for _, collision := range colls {
