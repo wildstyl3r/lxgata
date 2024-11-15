@@ -13,7 +13,8 @@ const ELASTIC, EFFECTIVE, EXCITATION, ATTACHMENT, IONIZATION, ROTATION Collision
 
 // Cross section point holds cross section value in [m^2] at energy [eV]
 type CrossSectionPoint struct {
-	Energy, Value float64
+	Energy, Value             float64
+	_NextValDiffPerEnergyDiff float64
 }
 
 type Collision struct {
@@ -33,7 +34,7 @@ type Collision struct {
 // CrossSectionAt calculates cross section at given energy as linear interpolation of piecewise linear cross section function.
 // If the energy is below first or beyond last data point, it assumes cross section to be constant at corresponding values.
 func (p *Collision) CrossSectionAt(energy float64) float64 {
-	l, r := 0, len(p.Data)
+	var l, r uint = 0, uint(len(p.Data))
 
 	for c := (l + r) / 2; l+1 < r; c = (l + r) / 2 {
 		if energy < p.Data[c].Energy {
@@ -42,11 +43,10 @@ func (p *Collision) CrossSectionAt(energy float64) float64 {
 			l = c
 		}
 	}
-	if l == 0 || r == len(p.Data) {
+	if l == 0 || r == uint(len(p.Data)) {
 		return p.Data[l].Value
 	} else {
-		w := (energy - p.Data[l].Energy) / (p.Data[r].Energy - p.Data[l].Energy)
-		return p.Data[l].Value + (p.Data[r].Value-p.Data[l].Value)*w
+		return p.Data[l].Value + (energy-p.Data[l].Energy)*p.Data[l]._NextValDiffPerEnergyDiff
 	}
 }
 

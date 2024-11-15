@@ -114,13 +114,17 @@ func LoadCrossSections(fileName string) (Collisions, error) {
 					return nil, err
 				}
 				if !(collisionType == IONIZATION || collisionType == EXCITATION || collisionType == ROTATION) || threshold < energy {
-					data = append(data, CrossSectionPoint{energy, crossSection})
+					data = append(data, CrossSectionPoint{energy, crossSection, 0.})
 				}
 				scanner.Scan()
 			}
 
 			if (collisionType == IONIZATION || collisionType == EXCITATION || collisionType == ROTATION) && data[0].Value > 0. {
-				data = append([]CrossSectionPoint{{threshold, 0.}}, data...)
+				data = append([]CrossSectionPoint{{threshold, 0., 0.}}, data...)
+			}
+
+			for i := 0; i+1 < len(data); i++ {
+				data[i]._NextValDiffPerEnergyDiff = (data[i+1].Value - data[i].Value) / (data[i+1].Energy - data[i].Energy)
 			}
 
 			collisions = append(collisions, Collision{
