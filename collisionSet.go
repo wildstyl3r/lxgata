@@ -4,6 +4,7 @@ package lxgata
 
 import (
 	"bufio"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -165,18 +166,11 @@ func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float6
 	return result
 }
 
-func (colls Collisions) MinThresholdOfKind(t CollisionType) float64 {
-	var result float64
+func (colls Collisions) MinThreshold() float64 {
+	var result = math.MaxFloat64
 	for _, collision := range colls {
-		if collision.Type == t {
+		if collision.Type != ELASTIC && collision.Type != EFFECTIVE && result < collision.Threshold {
 			result = collision.Threshold
-			break
-		}
-	}
-
-	for _, collision := range colls {
-		if collision.Type == t {
-			result = min(collision.Threshold, result)
 		}
 	}
 	return result
