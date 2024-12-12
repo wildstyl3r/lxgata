@@ -24,10 +24,10 @@ func TestLoadCrossSections(t *testing.T) {
 
 func TestCrossSectionAt(t *testing.T) {
 	collision := Collision{Data: []CrossSectionPoint{
-		{1.0e+1, 0},
-		{1.6e+1, 1},
-		{3.2e+1, 2},
-		{5.0e+2, 7},
+		{1.0e+1, 0, (1 - 0) / (1.6e+1 - 1.0e+1)},
+		{1.6e+1, 1, (2 - 1) / (3.2e+1 - 1.6e+1)},
+		{3.2e+1, 2, (7 - 2) / (5.0e+2 - 3.2e+1)},
+		{5.0e+2, 7, 0},
 	}}
 	eps := 1e-5
 	tests := map[string]struct {
