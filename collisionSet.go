@@ -169,7 +169,7 @@ func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float6
 func (colls Collisions) MinThreshold() float64 {
 	var result = math.MaxFloat64
 	for _, collision := range colls {
-		if collision.Threshold != 0 && result < collision.Threshold {
+		if collision.Threshold != 0 && collision.Threshold < result {
 			result = collision.Threshold
 		}
 	}
