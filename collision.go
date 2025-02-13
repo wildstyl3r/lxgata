@@ -53,11 +53,11 @@ func (p *Collision) CrossSectionAt(energy float64) float64 {
 		}
 	} else {
 		energy -= p.Threshold
-		index := int(energy / float64(p.ExpandedDiff))
-		if index < 0 {
+		if energy < 0 {
 			return 0.
 		}
-		if index >= int(len(p.ExpandedData)) {
+		index := int(energy / float64(p.ExpandedDiff))
+		if index >= len(p.ExpandedData) {
 			return float64(p.ExpandedData[len(p.ExpandedData)-1])
 		}
 		return p.ExpandedData[index] + (energy-p.ExpandedDiff*float64(index))/p.ExpandedDiff*(p.ExpandedData[index+1]-p.ExpandedData[index])
