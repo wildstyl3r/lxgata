@@ -18,19 +18,20 @@ type CrossSectionPoint struct {
 }
 
 type Collision struct {
-	Type            CollisionType
-	MassRatio       float64 // ratio of electron mass to target particle, if applicable
-	Species         string  // target particle species
-	ExpandedData    []float64
-	ExpandedDiff    float64
-	Data            []CrossSectionPoint
-	Threshold       float64           // value of energy [eV], below which collision can not occur
-	StatWeightRatio float64           // statistical weight ratio of the upper state to the lower state (for excitations)
-	LowerEnergy     float64           // energy of lower state of rotational process (for rotations)
-	LowerStatWeight float64           // statistical weight of lower state of rotational process (for rotations)
-	UpperEnergy     float64           // energy of upper state of rotational process (for rotations)
-	UpperStatWeight float64           // statistical weight of upper state of rotational process (for rotations)
-	Info            map[string]string // any additional fields found in collision description
+	Type                CollisionType
+	MassRatio           float64 // ratio of electron mass to target particle, if applicable
+	Species             string  // target particle species
+	ExpandedData        []float64
+	ExpandedDiff        float64
+	InverseExpandedDiff float64
+	Data                []CrossSectionPoint
+	Threshold           float64           // value of energy [eV], below which collision can not occur
+	StatWeightRatio     float64           // statistical weight ratio of the upper state to the lower state (for excitations)
+	LowerEnergy         float64           // energy of lower state of rotational process (for rotations)
+	LowerStatWeight     float64           // statistical weight of lower state of rotational process (for rotations)
+	UpperEnergy         float64           // energy of upper state of rotational process (for rotations)
+	UpperStatWeight     float64           // statistical weight of upper state of rotational process (for rotations)
+	Info                map[string]string // any additional fields found in collision description
 }
 
 // CrossSectionAt calculates cross section at given energy as linear interpolation of piecewise linear cross section function.
@@ -56,11 +57,12 @@ func (p *Collision) CrossSectionAt(energy float64) float64 {
 		if energy < 0 {
 			return 0.
 		}
-		index := int(energy / float64(p.ExpandedDiff))
+		index := int(energy * p.InverseExpandedDiff)
 		if index+1 >= len(p.ExpandedData) {
-			return float64(p.ExpandedData[len(p.ExpandedData)-1])
+			return p.ExpandedData[len(p.ExpandedData)-1]
 		} else {
-			return p.ExpandedData[index] + (energy-p.ExpandedDiff*float64(index))/p.ExpandedDiff*(p.ExpandedData[index+1]-p.ExpandedData[index])
+			cs_i := p.ExpandedData[index]
+			return cs_i + (energy-p.ExpandedDiff*float64(index))*p.InverseExpandedDiff*(p.ExpandedData[index+1]-cs_i)
 		}
 	}
 }
@@ -71,6 +73,7 @@ func (p Collision) String() string {
 
 func (p *Collision) Expand(diff float64) {
 	p.ExpandedDiff = diff
+	p.InverseExpandedDiff = 1. / diff
 	p.ExpandedData = make([]float64, int((p.Data[len(p.Data)-1].Energy-p.Threshold)/diff)+1)
 	dataIndex := 0
 	var share, curEnergy float64
