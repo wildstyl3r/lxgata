@@ -149,7 +149,7 @@ func LoadCrossSections(fileName string) (Collisions, error) {
 // TotalCrossSectionAt returns total cross section at given energy for all species and processes in collisions set
 func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 	var result float64
-	for i := 0; i < len(colls); i++ {
+	for i := range colls {
 		result += colls[i].CrossSectionAt(energy)
 	}
 	return result
@@ -158,7 +158,7 @@ func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 // TotalCrossSectionOfKindAt returns summed cross section of given type at given energy for all species and processes in collision set
 func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float64) float64 {
 	var result float64
-	for i := 0; i < len(colls); i++ {
+	for i := range colls {
 		if colls[i].Type == t {
 			result += colls[i].CrossSectionAt(energy)
 		}
@@ -168,7 +168,7 @@ func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float6
 
 func (colls Collisions) MinThreshold() float64 {
 	var result = math.MaxFloat64
-	for i := 0; i < len(colls); i++ {
+	for i := range colls {
 		if colls[i].Threshold != 0 && colls[i].Threshold < result {
 			result = colls[i].Threshold
 		}
@@ -178,7 +178,7 @@ func (colls Collisions) MinThreshold() float64 {
 
 func (colls Collisions) MinThresholdOfKind(t CollisionType) float64 {
 	var result = math.MaxFloat64
-	for i := 0; i < len(colls); i++ {
+	for i := range colls {
 		if colls[i].Threshold != 0 && colls[i].Threshold < result && colls[i].Type == t {
 			result = colls[i].Threshold
 		}
@@ -190,11 +190,11 @@ func (colls Collisions) MinThresholdOfKind(t CollisionType) float64 {
 // Can be used to estimate lower bound on mean free path
 func (colls Collisions) SurplusCrossSection() float64 {
 	var result float64
-	for i := 0; i < len(colls); i++ {
+	for i := range colls {
 		var max float64
-		for _, csp := range colls[i].Data {
-			if max < csp.Value {
-				max = csp.Value
+		for d := range colls[i].Data {
+			if max < colls[i].Data[d].Value {
+				max = colls[i].Data[d].Value
 			}
 		}
 		result += max

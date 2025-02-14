@@ -62,7 +62,7 @@ func (p *Collision) CrossSectionAt(energy float64) float64 {
 			return p.ExpandedData[len(p.ExpandedData)-1]
 		} else {
 			cs_i := p.ExpandedData[index]
-			return cs_i + (energy-p.ExpandedDiff*float64(index))*p.InverseExpandedDiff*(p.ExpandedData[index+1]-cs_i)
+			return cs_i + (energy*p.InverseExpandedDiff-float64(index))*(p.ExpandedData[index+1]-cs_i)
 		}
 	}
 }
