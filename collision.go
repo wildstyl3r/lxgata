@@ -79,7 +79,6 @@ func (p *Collision) Expand(diff float64) {
 	var share, curEnergy float64
 	for expIndex := 0; expIndex < len(p.ExpandedData); expIndex++ {
 		curEnergy = p.Threshold + float64(expIndex)*diff
-		//?? dataIndex < len(p.Data) &&
 		for dataIndex+1 < len(p.Data) && curEnergy > p.Data[dataIndex+1].Energy {
 			dataIndex++
 		}
@@ -90,12 +89,4 @@ func (p *Collision) Expand(diff float64) {
 			p.ExpandedData[expIndex] = p.Data[dataIndex].Value + share*(p.Data[dataIndex+1].Value-p.Data[dataIndex].Value)
 		}
 	}
-	// for dataIndex+1 < len(p.Data) {
-	// 	for p.Threshold+expIndex*diff < p.Data[dataIndex+1].Energy && expIndex < len(p.ExpandedData) {
-	// 		cs := float64(1.?)
-	// 		p.ExpandedData[expIndex] = cs
-	// 		expIndex++
-	// 	}
-	// 	dataIndex++
-	// }
 }

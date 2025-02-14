@@ -149,8 +149,8 @@ func LoadCrossSections(fileName string) (Collisions, error) {
 // TotalCrossSectionAt returns total cross section at given energy for all species and processes in collisions set
 func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 	var result float64
-	for _, collision := range colls {
-		result += collision.CrossSectionAt(energy)
+	for i := 0; i < len(colls); i++ {
+		result += colls[i].CrossSectionAt(energy)
 	}
 	return result
 }
@@ -158,9 +158,9 @@ func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 // TotalCrossSectionOfKindAt returns summed cross section of given type at given energy for all species and processes in collision set
 func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float64) float64 {
 	var result float64
-	for _, collision := range colls {
-		if collision.Type == t {
-			result += collision.CrossSectionAt(energy)
+	for i := 0; i < len(colls); i++ {
+		if colls[i].Type == t {
+			result += colls[i].CrossSectionAt(energy)
 		}
 	}
 	return result
@@ -168,9 +168,9 @@ func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float6
 
 func (colls Collisions) MinThreshold() float64 {
 	var result = math.MaxFloat64
-	for _, collision := range colls {
-		if collision.Threshold != 0 && collision.Threshold < result {
-			result = collision.Threshold
+	for i := 0; i < len(colls); i++ {
+		if colls[i].Threshold != 0 && colls[i].Threshold < result {
+			result = colls[i].Threshold
 		}
 	}
 	return result
@@ -178,9 +178,9 @@ func (colls Collisions) MinThreshold() float64 {
 
 func (colls Collisions) MinThresholdOfKind(t CollisionType) float64 {
 	var result = math.MaxFloat64
-	for _, collision := range colls {
-		if collision.Threshold != 0 && collision.Threshold < result && collision.Type == t {
-			result = collision.Threshold
+	for i := 0; i < len(colls); i++ {
+		if colls[i].Threshold != 0 && colls[i].Threshold < result && colls[i].Type == t {
+			result = colls[i].Threshold
 		}
 	}
 	return result
@@ -190,9 +190,9 @@ func (colls Collisions) MinThresholdOfKind(t CollisionType) float64 {
 // Can be used to estimate lower bound on mean free path
 func (colls Collisions) SurplusCrossSection() float64 {
 	var result float64
-	for _, collision := range colls {
+	for i := 0; i < len(colls); i++ {
 		var max float64
-		for _, csp := range collision.Data {
+		for _, csp := range colls[i].Data {
 			if max < csp.Value {
 				max = csp.Value
 			}
