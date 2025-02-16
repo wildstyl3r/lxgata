@@ -155,6 +155,14 @@ func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 	return result
 }
 
+func (colls Collisions) CrossSectionsAt(energy float64) (result []float64) {
+	result = make([]float64, len(colls))
+	for i := range colls {
+		result[i] = colls[i].CrossSectionAt(energy)
+	}
+	return
+}
+
 // TotalCrossSectionOfKindAt returns summed cross section of given type at given energy for all species and processes in collision set
 func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float64) float64 {
 	var result float64
