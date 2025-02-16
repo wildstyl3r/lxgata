@@ -23,6 +23,7 @@ type Collision struct {
 	Species             string  // target particle species
 	ExpandedData        []float64
 	ExpandedDiff        float64
+	GranularExpansion   bool
 	InverseExpandedDiff float64
 	Data                []CrossSectionPoint
 	Threshold           float64           // value of energy [eV], below which collision can not occur
@@ -61,8 +62,12 @@ func (p *Collision) CrossSectionAt(energy float64) float64 {
 		if index+1 >= len(p.ExpandedData) {
 			return p.ExpandedData[len(p.ExpandedData)-1]
 		} else {
-			cs_i := p.ExpandedData[index]
-			return cs_i + (energy*p.InverseExpandedDiff-float64(index))*(p.ExpandedData[index+1]-cs_i)
+			if p.GranularExpansion {
+				return p.ExpandedData[index]
+			} else {
+				cs_i := p.ExpandedData[index]
+				return cs_i + (energy*p.InverseExpandedDiff-float64(index))*(p.ExpandedData[index+1]-cs_i)
+			}
 		}
 	}
 }
@@ -71,7 +76,7 @@ func (p Collision) String() string {
 	return fmt.Sprintf("Cross section of %v %v. Threshold: %v", p.Species, strings.ToLower(string(p.Type)), p.Threshold)
 }
 
-func (p *Collision) Expand(diff float64) {
+func (p *Collision) Expand(diff float64, granular bool) {
 	p.ExpandedDiff = diff
 	p.InverseExpandedDiff = 1. / diff
 	p.ExpandedData = make([]float64, int((p.Data[len(p.Data)-1].Energy-p.Threshold)/diff)+1)
@@ -88,5 +93,8 @@ func (p *Collision) Expand(diff float64) {
 			share = (curEnergy - p.Data[dataIndex].Energy) / (p.Data[dataIndex+1].Energy - p.Data[dataIndex].Energy)
 			p.ExpandedData[expIndex] = p.Data[dataIndex].Value + share*(p.Data[dataIndex+1].Value-p.Data[dataIndex].Value)
 		}
+	}
+	if granular {
+		p.GranularExpansion = true
 	}
 }
