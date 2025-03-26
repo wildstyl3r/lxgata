@@ -210,8 +210,7 @@ func (colls Collisions) SurplusCrossSection() float64 {
 	return result
 }
 
-func (colls Collisions) MakeEnergyGrid(minStep float64) []float64 {
-	maxEnergy := 0.
+func (colls Collisions) MakeEnergyGrid(minStep, maxEnergy float64) []float64 {
 	for i := range colls {
 		maxEnergy = max(maxEnergy, colls[i].Data[len(colls[i].Data)-1].Energy)
 	}
