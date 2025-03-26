@@ -209,3 +209,44 @@ func (colls Collisions) SurplusCrossSection() float64 {
 	}
 	return result
 }
+
+func (colls Collisions) MakeEnergyGrid(minStep float64) []float64 {
+	maxEnergy := 0.
+	for i := range colls {
+		maxEnergy = max(maxEnergy, colls[i].Data[len(colls[i].Data)-1].Energy)
+	}
+	nSteps := int(maxEnergy / minStep)
+	finestGrid := make([]float64, nSteps)
+	for i := range finestGrid {
+		finestGrid[i] = colls.TotalCrossSectionAt(float64(i) * minStep)
+	}
+	maxCSChange := 0.
+	for i := range nSteps - 1 {
+		maxCSChange = max(maxCSChange, math.Abs(finestGrid[i+1]-finestGrid[i]))
+	}
+	peaks := map[int]struct{}{}
+	for i := range nSteps - 2 {
+		if (finestGrid[i+1]-finestGrid[i])*(finestGrid[i+2]-finestGrid[i+1]) < 0 {
+			peaks[i+1] = struct{}{}
+		}
+	}
+
+	gridIndicies := []int{0}
+	for i := range nSteps - 1 {
+		if _, peak := peaks[i+1]; peak {
+			gridIndicies = append(gridIndicies, i+1)
+			continue
+		}
+		lastIndex := gridIndicies[len(gridIndicies)-1]
+		if i != lastIndex && math.Abs(finestGrid[i+1]-finestGrid[lastIndex]) > maxCSChange {
+			gridIndicies = append(gridIndicies, i)
+		}
+	}
+	gridIndicies = append(gridIndicies, nSteps-1)
+
+	grid := make([]float64, len(gridIndicies))
+	for i := range gridIndicies {
+		grid[i] = float64(gridIndicies[i]) * minStep
+	}
+	return grid
+}
