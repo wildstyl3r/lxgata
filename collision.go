@@ -17,8 +17,17 @@ type CrossSectionPoint struct {
 	_NextValDiffPerEnergyDiff float64
 }
 
+type ExcitationType int
+
+const (
+	Ordinary ExcitationType = iota
+	Rotational
+	Vibrational
+)
+
 type Collision struct {
 	Type                CollisionType
+	Excitation          ExcitationType
 	MassRatio           float64 // ratio of electron mass to target particle, if applicable
 	ExpandedData        []float64
 	InverseExpandedDiff float64

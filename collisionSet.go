@@ -92,11 +92,26 @@ func LoadCrossSections(fileName string) (Collisions, error) {
 				}
 			}
 
+			excitationType := Ordinary
 			info := make(map[string]string)
 			for !strings.HasPrefix(scanner.Text(), "-----") {
 				key, val, found := strings.Cut(scanner.Text(), ":")
 				if found {
 					info[strings.Trim(key, " ")] = strings.Trim(val, " ")
+					if strings.Contains(val, "VIB") {
+						if excitationType == Ordinary || excitationType == Vibrational {
+							excitationType = Vibrational
+						} else {
+							println("Ambiguity in excitation type: [", key, ": ", val, "], already set as Rotational")
+						}
+					}
+					if strings.Contains(val, "ROT") {
+						if excitationType == Ordinary || excitationType == Rotational {
+							excitationType = Rotational
+						} else {
+							println("Ambiguity in excitation type: [", key, ": ", val, "], already set as Vibrational")
+						}
+					}
 				}
 				scanner.Scan()
 			}
@@ -130,6 +145,7 @@ func LoadCrossSections(fileName string) (Collisions, error) {
 
 			collisions = append(collisions, Collision{
 				Type:            collisionType,
+				Excitation:      excitationType,
 				MassRatio:       massRatio,
 				Species:         species,
 				Data:            data,
