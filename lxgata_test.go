@@ -6,7 +6,7 @@ import (
 )
 
 func TestLoadCrossSections(t *testing.T) {
-	cs, err := LoadCrossSections("LXCat_format_test.txt")
+	cs, err := LoadCrossSections("LXCat_format_test.txt", true)
 	if err != nil {
 		t.Fatalf("Unable to load cross sections %v", err.Error())
 	}

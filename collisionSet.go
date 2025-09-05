@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"math"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -13,7 +14,7 @@ import (
 type Collisions []Collision
 
 // LoadCrossSections loads cross section data from file in LXCat/BOLSIG format
-func LoadCrossSections(fileName string) (Collisions, error) {
+func LoadCrossSections(fileName string, forMonteCarlo bool) (Collisions, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
@@ -22,7 +23,7 @@ func LoadCrossSections(fileName string) (Collisions, error) {
 
 	setProcessTypes := map[string]struct{}{string(ELASTIC): {}, string(EFFECTIVE): {}, string(EXCITATION): {}, string(ATTACHMENT): {}, string(IONIZATION): {}, string(ROTATION): {}}
 
-	var collisions []Collision
+	var collisions Collisions
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -159,7 +160,80 @@ func LoadCrossSections(fileName string) (Collisions, error) {
 			})
 		}
 	}
+	if forMonteCarlo {
+		for i := range len(collisions) {
+			if collisions[i].Type == EFFECTIVE {
+				collisions = append(append(collisions[:i], Collision{
+					Type:      ELASTIC,
+					MassRatio: collisions[i].MassRatio,
+					Species:   collisions[i].Species,
+					Data:      collisions.CalculateElasticFromEffective(),
+					Info:      collisions[i].Info,
+				}), collisions[i+1:]...)
+				break
+			}
+		}
+	}
 	return collisions, nil
+}
+
+func Argsort(s []float64, abs bool) (indices []int) {
+	indices = make([]int, len(s))
+	for i := range indices {
+		indices[i] = i
+	}
+
+	if abs {
+		sort.Slice(indices, func(i, j int) bool {
+			return math.Abs(s[indices[i]]) < math.Abs(s[indices[j]])
+		})
+	} else {
+		sort.Slice(indices, func(i, j int) bool {
+			return s[indices[i]] < s[indices[j]]
+		})
+	}
+
+	return indices
+}
+
+func SumFloat64Slice(arr []float64) (sum float64) { // Kahan's algorithm
+	compensation := 0.
+	summationOrder := Argsort(arr, true)
+	for i := range summationOrder {
+		y := arr[summationOrder[i]] - compensation
+		temp := sum + y
+		compensation = (temp - sum) - y
+		sum = temp
+	}
+	return sum
+}
+
+func (colls Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
+	effectiveIndex := -1
+	for i := range colls {
+		if colls[i].Type == EFFECTIVE {
+			effectiveIndex = i
+		}
+	}
+	if effectiveIndex == -1 {
+		return nil
+	}
+
+	elasticData := make([]CrossSectionPoint, len(colls[effectiveIndex].Data))
+	for i := range colls[effectiveIndex].Data {
+		inelasticSumTerms := make([]float64, 0, len(colls)-1)
+		energy := colls[effectiveIndex].Data[i].Energy
+		for process := range colls {
+			if colls[process].Type != EFFECTIVE && colls[process].Type != ELASTIC {
+				inelasticSumTerms = append(inelasticSumTerms, colls[process].CrossSectionAt(energy))
+			}
+		}
+		elasticData[i] = CrossSectionPoint{Energy: energy, Value: colls[effectiveIndex].Data[i].Value - SumFloat64Slice(inelasticSumTerms)}
+	}
+	for i := 0; i+1 < len(elasticData); i++ {
+		elasticData[i]._NextValDiffPerEnergyDiff = (elasticData[i+1].Value - elasticData[i].Value) / (elasticData[i+1].Energy - elasticData[i].Energy)
+	}
+	return elasticData
 }
 
 // TotalCrossSectionAt returns total cross section at given energy for all species and processes in collisions set
