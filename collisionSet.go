@@ -5,25 +5,41 @@ package lxgata
 import (
 	"bufio"
 	"math"
+	"math/rand"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 )
 
-type Collisions []Collision
+type ScatteringMode int
+
+const Hartree float64 = 27.0211386 // [eV]
+
+const (
+	Isotropic ScatteringMode = iota
+	AnisotropicAllCoulomb
+	AnisotropicAllBorn
+	AnisotropicElasticCoulombInelasticBorn
+)
+
+type Collisions struct {
+	scatteringMode ScatteringMode
+	UParameter     float64 // parameter regulating the shape of differential cross section in the Coulomb model, u_eta in Hagelaar's MCIG paper, equation (32) at page 10
+	Processes      []Collision
+}
 
 // LoadCrossSections loads cross section data from file in LXCat/BOLSIG format
-func LoadCrossSections(fileName string, forMonteCarlo bool) (Collisions, error) {
+func LoadCrossSections(fileName string, forMonteCarlo bool, scatteringMode ScatteringMode, uParameter float64) (Collisions, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
-		return nil, err
+		return Collisions{}, err
 	}
 	defer file.Close()
 
 	setProcessTypes := map[string]struct{}{string(ELASTIC): {}, string(EFFECTIVE): {}, string(EXCITATION): {}, string(ATTACHMENT): {}, string(IONIZATION): {}, string(ROTATION): {}}
 
-	var collisions Collisions
+	var collisions = Collisions{scatteringMode: scatteringMode, UParameter: uParameter}
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -49,47 +65,47 @@ func LoadCrossSections(fileName string, forMonteCarlo bool) (Collisions, error) 
 			case ELASTIC:
 				massRatio, err = strconv.ParseFloat(parameters[0], 64)
 				if err != nil {
-					return nil, err
+					return Collisions{}, err
 				}
 			case EFFECTIVE:
 				massRatio, err = strconv.ParseFloat(parameters[0], 64)
 				if err != nil {
-					return nil, err
+					return Collisions{}, err
 				}
 			case EXCITATION:
 				threshold, err = strconv.ParseFloat(parameters[0], 64)
 				if err != nil {
-					return nil, err
+					return Collisions{}, err
 				}
 				if len(parameters) > 1 {
 					statWeightRatio, err = strconv.ParseFloat(parameters[1], 64)
 					if err != nil {
-						return nil, err
+						return Collisions{}, err
 					}
 				}
 			case IONIZATION:
 				threshold, err = strconv.ParseFloat(parameters[0], 64)
 				if err != nil {
-					return nil, err
+					return Collisions{}, err
 				}
 			case ROTATION:
 				lowerEnergy, err = strconv.ParseFloat(parameters[0], 64)
 				if err != nil {
-					return nil, err
+					return Collisions{}, err
 				}
 				lowerStatWeight, err = strconv.ParseFloat(parameters[1], 64)
 				if err != nil {
-					return nil, err
+					return Collisions{}, err
 				}
 				scanner.Scan()
 				parameters = strings.Fields(scanner.Text())
 				upperEnergy, err = strconv.ParseFloat(parameters[0], 64)
 				if err != nil {
-					return nil, err
+					return Collisions{}, err
 				}
 				upperStatWeight, err = strconv.ParseFloat(parameters[1], 64)
 				if err != nil {
-					return nil, err
+					return Collisions{}, err
 				}
 			}
 
@@ -123,12 +139,12 @@ func LoadCrossSections(fileName string, forMonteCarlo bool) (Collisions, error) 
 				crossSectionPoint := strings.Fields(scanner.Text())
 				energy, err := strconv.ParseFloat(crossSectionPoint[0], 64)
 				if err != nil {
-					return nil, err
+					return Collisions{}, err
 				}
 
 				crossSection, err := strconv.ParseFloat(crossSectionPoint[1], 64)
 				if err != nil {
-					return nil, err
+					return Collisions{}, err
 				}
 				if !(collisionType == IONIZATION || collisionType == EXCITATION || collisionType == ROTATION) || threshold < energy {
 					data = append(data, CrossSectionPoint{energy, crossSection, 0.})
@@ -144,7 +160,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool) (Collisions, error) 
 				data[i]._NextValDiffPerEnergyDiff = (data[i+1].Value - data[i].Value) / (data[i+1].Energy - data[i].Energy)
 			}
 
-			collisions = append(collisions, Collision{
+			collisions.Processes = append(collisions.Processes, Collision{
 				Type:            collisionType,
 				Excitation:      excitationType,
 				MassRatio:       massRatio,
@@ -161,18 +177,39 @@ func LoadCrossSections(fileName string, forMonteCarlo bool) (Collisions, error) 
 		}
 	}
 	if forMonteCarlo {
-		for i := range len(collisions) {
-			if collisions[i].Type == EFFECTIVE {
-				collisions = append(append(collisions[:i], Collision{
+		for i := range len(collisions.Processes) {
+			if collisions.Processes[i].Type == EFFECTIVE {
+				collisions.Processes = append(append(collisions.Processes[:i], Collision{
 					Type:      ELASTIC,
-					MassRatio: collisions[i].MassRatio,
-					Species:   collisions[i].Species,
+					MassRatio: collisions.Processes[i].MassRatio,
+					Species:   collisions.Processes[i].Species,
 					Data:      collisions.CalculateElasticFromEffective(),
-					Info:      collisions[i].Info,
-				}), collisions[i+1:]...)
+					Info:      collisions.Processes[i].Info,
+				}), collisions.Processes[i+1:]...)
 				break
 			}
 		}
+	}
+	switch collisions.scatteringMode {
+	case AnisotropicAllBorn:
+		for i := range len(collisions.Processes) {
+			if collisions.Processes[i].Type == ELASTIC {
+				for j := range collisions.Processes[i].Data {
+					collisions.Processes[i].Data[j].Value /= BornNormalization(collisions.Processes[i].Data[j].Energy, 0., 180)
+				}
+				break
+			}
+		}
+	case AnisotropicAllCoulomb, AnisotropicElasticCoulombInelasticBorn:
+		for i := range len(collisions.Processes) {
+			if collisions.Processes[i].Type == ELASTIC {
+				for j := range collisions.Processes[i].Data {
+					collisions.Processes[i].Data[j].Value /= CoulombNormalization(collisions.Processes[i].Data[j].Energy, 0., Hartree)
+				}
+				break
+			}
+		}
+	default:
 	}
 	return collisions, nil
 }
@@ -210,8 +247,8 @@ func SumFloat64Slice(arr []float64) (sum float64) { // Kahan's algorithm
 
 func (colls Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
 	effectiveIndex := -1
-	for i := range colls {
-		if colls[i].Type == EFFECTIVE {
+	for i := range colls.Processes {
+		if colls.Processes[i].Type == EFFECTIVE {
 			effectiveIndex = i
 		}
 	}
@@ -219,16 +256,16 @@ func (colls Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
 		return nil
 	}
 
-	elasticData := make([]CrossSectionPoint, len(colls[effectiveIndex].Data))
-	for i := range colls[effectiveIndex].Data {
-		inelasticSumTerms := make([]float64, 0, len(colls)-1)
-		energy := colls[effectiveIndex].Data[i].Energy
-		for process := range colls {
-			if colls[process].Type != EFFECTIVE && colls[process].Type != ELASTIC {
-				inelasticSumTerms = append(inelasticSumTerms, colls[process].CrossSectionAt(energy))
+	elasticData := make([]CrossSectionPoint, len(colls.Processes[effectiveIndex].Data))
+	for i := range colls.Processes[effectiveIndex].Data {
+		inelasticSumTerms := make([]float64, 0, len(colls.Processes)-1)
+		energy := colls.Processes[effectiveIndex].Data[i].Energy
+		for process := range colls.Processes {
+			if colls.Processes[process].Type != EFFECTIVE && colls.Processes[process].Type != ELASTIC {
+				inelasticSumTerms = append(inelasticSumTerms, colls.Processes[process].CrossSectionAt(energy))
 			}
 		}
-		elasticData[i] = CrossSectionPoint{Energy: energy, Value: colls[effectiveIndex].Data[i].Value - SumFloat64Slice(inelasticSumTerms)}
+		elasticData[i] = CrossSectionPoint{Energy: energy, Value: colls.Processes[effectiveIndex].Data[i].Value - SumFloat64Slice(inelasticSumTerms)}
 	}
 	for i := 0; i+1 < len(elasticData); i++ {
 		elasticData[i]._NextValDiffPerEnergyDiff = (elasticData[i+1].Value - elasticData[i].Value) / (elasticData[i+1].Energy - elasticData[i].Energy)
@@ -239,16 +276,16 @@ func (colls Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
 // TotalCrossSectionAt returns total cross section at given energy for all species and processes in collisions set
 func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 	var result float64
-	for i := range colls {
-		result += colls[i].CrossSectionAt(energy)
+	for i := range colls.Processes {
+		result += colls.Processes[i].CrossSectionAt(energy)
 	}
 	return result
 }
 
 func (colls Collisions) CrossSectionsAt(energy float64) (result []float64) {
-	result = make([]float64, len(colls))
-	for i := range colls {
-		result[i] = colls[i].CrossSectionAt(energy)
+	result = make([]float64, len(colls.Processes))
+	for i := range colls.Processes {
+		result[i] = colls.Processes[i].CrossSectionAt(energy)
 	}
 	return
 }
@@ -256,9 +293,9 @@ func (colls Collisions) CrossSectionsAt(energy float64) (result []float64) {
 // TotalCrossSectionOfKindAt returns summed cross section of given type at given energy for all species and processes in collision set
 func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float64) float64 {
 	var result float64
-	for i := range colls {
-		if colls[i].Type == t {
-			result += colls[i].CrossSectionAt(energy)
+	for i := range colls.Processes {
+		if colls.Processes[i].Type == t {
+			result += colls.Processes[i].CrossSectionAt(energy)
 		}
 	}
 	return result
@@ -266,9 +303,9 @@ func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float6
 
 func (colls Collisions) MinThreshold() float64 {
 	var result = math.MaxFloat64
-	for i := range colls {
-		if colls[i].Threshold != 0 && colls[i].Threshold < result {
-			result = colls[i].Threshold
+	for i := range colls.Processes {
+		if colls.Processes[i].Threshold != 0 && colls.Processes[i].Threshold < result {
+			result = colls.Processes[i].Threshold
 		}
 	}
 	return result
@@ -276,9 +313,9 @@ func (colls Collisions) MinThreshold() float64 {
 
 func (colls Collisions) MinThresholdOfKind(t CollisionType) float64 {
 	var result = math.MaxFloat64
-	for i := range colls {
-		if colls[i].Threshold != 0 && colls[i].Threshold < result && colls[i].Type == t {
-			result = colls[i].Threshold
+	for i := range colls.Processes {
+		if colls.Processes[i].Threshold != 0 && colls.Processes[i].Threshold < result && colls.Processes[i].Type == t {
+			result = colls.Processes[i].Threshold
 		}
 	}
 	return result
@@ -288,11 +325,11 @@ func (colls Collisions) MinThresholdOfKind(t CollisionType) float64 {
 // Can be used to estimate lower bound on mean free path
 func (colls Collisions) SurplusCrossSection() float64 {
 	var result float64
-	for i := range colls {
+	for i := range colls.Processes {
 		var max float64
-		for d := range colls[i].Data {
-			if max < colls[i].Data[d].Value {
-				max = colls[i].Data[d].Value
+		for d := range colls.Processes[i].Data {
+			if max < colls.Processes[i].Data[d].Value {
+				max = colls.Processes[i].Data[d].Value
 			}
 		}
 		result += max
@@ -301,8 +338,8 @@ func (colls Collisions) SurplusCrossSection() float64 {
 }
 
 func (colls Collisions) MakeEnergyGrid(minStep, maxEnergy float64) []float64 {
-	for i := range colls {
-		maxEnergy = max(maxEnergy, colls[i].Data[len(colls[i].Data)-1].Energy)
+	for i := range colls.Processes {
+		maxEnergy = max(maxEnergy, colls.Processes[i].Data[len(colls.Processes[i].Data)-1].Energy)
 	}
 	nSteps := int(maxEnergy / minStep)
 	finestGrid := make([]float64, nSteps)
@@ -338,4 +375,21 @@ func (colls Collisions) MakeEnergyGrid(minStep, maxEnergy float64) []float64 {
 		grid[i] = float64(gridIndicies[i]) * minStep
 	}
 	return grid
+}
+
+func (colls Collisions) SampleScatteringAngleCos(energy, transitionEnergy float64, collisionType CollisionType) (cosChi float64) {
+	switch colls.scatteringMode {
+	case AnisotropicAllBorn:
+		return BornScatteringAngleSample(energy, transitionEnergy)
+	case AnisotropicAllCoulomb:
+		return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy)
+	case AnisotropicElasticCoulombInelasticBorn:
+		if collisionType == EFFECTIVE || collisionType == ELASTIC {
+			return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy)
+		} else {
+			return BornScatteringAngleSample(energy, transitionEnergy)
+		}
+	default:
+		return 1 - 2*rand.Float64()
+	}
 }

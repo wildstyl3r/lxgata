@@ -6,14 +6,14 @@ import (
 )
 
 func TestLoadCrossSections(t *testing.T) {
-	cs, err := LoadCrossSections("LXCat_format_test.txt", true)
+	cs, err := LoadCrossSections("LXCat_format_test.txt", true, Isotropic, Hartree)
 	if err != nil {
 		t.Fatalf("Unable to load cross sections %v", err.Error())
 	}
-	if len(cs) != 4 {
+	if len(cs.Processes) != 4 {
 		t.Fatalf("Not all processes were loaded")
 	}
-	for _, p := range cs {
+	for _, p := range cs.Processes {
 		if (p.Type == IONIZATION || p.Type == EXCITATION || p.Type == ROTATION) && p.Data[0].Value != 0. {
 			t.Fatalf("Zero beyond threshold energy is not added for process %v", p)
 		}
