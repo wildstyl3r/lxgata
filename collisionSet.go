@@ -19,7 +19,7 @@ const Hartree float64 = 27.0211386 // [eV]
 const (
 	Isotropic ScatteringMode = iota
 	AnisotropicAllCoulomb
-	AnisotropicAllBorn
+	AnisotropicElasticIsotropicInelasticBorn
 	AnisotropicElasticCoulombInelasticBorn
 )
 
@@ -191,18 +191,6 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, scatteringMode Scatt
 		}
 	}
 	switch collisions.scatteringMode {
-	case AnisotropicAllBorn:
-		for i := range len(collisions.Processes) {
-			if collisions.Processes[i].Type == ELASTIC {
-				for j := range collisions.Processes[i].Data {
-					if j == 0 {
-						break
-					}
-					collisions.Processes[i].Data[j].Value /= BornNormalization(collisions.Processes[i].Data[j].Energy, 0., 180)
-				}
-				break
-			}
-		}
 	case AnisotropicAllCoulomb, AnisotropicElasticCoulombInelasticBorn:
 		for i := range len(collisions.Processes) {
 			if collisions.Processes[i].Type == ELASTIC {
@@ -385,8 +373,12 @@ func (colls Collisions) MakeEnergyGrid(minStep, maxEnergy float64) []float64 {
 
 func (colls Collisions) SampleScatteringAngleCos(energy, transitionEnergy float64, collisionType CollisionType) (cosChi float64) {
 	switch colls.scatteringMode {
-	case AnisotropicAllBorn:
-		return BornScatteringAngleSample(energy, transitionEnergy)
+	case AnisotropicElasticIsotropicInelasticBorn:
+		if collisionType == EFFECTIVE || collisionType == ELASTIC {
+			return 1 - 2*rand.Float64()
+		} else {
+			return BornScatteringAngleSample(energy, transitionEnergy)
+		}
 	case AnisotropicAllCoulomb:
 		return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy)
 	case AnisotropicElasticCoulombInelasticBorn:

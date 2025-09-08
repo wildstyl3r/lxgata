@@ -30,18 +30,3 @@ func CoulombNormalization(energy, transitionEnergy, uParameter float64) (denomin
 func BornDifferentialCrossSection(beta, chi float64) float64 {
 	return beta / (2 * math.Pi * math.Log(math.Abs((1+beta)/(1-beta))) * (1 + beta*beta - 2*beta*math.Cos(chi)))
 }
-
-func BornNormalization(energy, transitionEnergy float64, anglePieces int) (denominator float64) {
-	beta := math.Sqrt(1 - transitionEnergy/energy)
-	//using trapezoid method
-	firstBase := 0.
-	deltaChi := math.Pi / float64(anglePieces)
-	sumList := make([]float64, anglePieces)
-	for i := 1; i <= anglePieces; i++ {
-		angle := float64(i) * deltaChi
-		secondBase := (1. - math.Cos(angle)) * BornDifferentialCrossSection(beta, angle) * math.Sin(angle)
-		sumList[i-1] = 0.5 * (firstBase + secondBase)
-		firstBase = secondBase
-	}
-	return SumFloat64Slice(sumList)
-}
