@@ -195,6 +195,9 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, scatteringMode Scatt
 		for i := range len(collisions.Processes) {
 			if collisions.Processes[i].Type == ELASTIC {
 				for j := range collisions.Processes[i].Data {
+					if j == 0 {
+						break
+					}
 					collisions.Processes[i].Data[j].Value /= BornNormalization(collisions.Processes[i].Data[j].Energy, 0., 180)
 				}
 				break
@@ -204,6 +207,9 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, scatteringMode Scatt
 		for i := range len(collisions.Processes) {
 			if collisions.Processes[i].Type == ELASTIC {
 				for j := range collisions.Processes[i].Data {
+					if j == 0 {
+						break
+					}
 					collisions.Processes[i].Data[j].Value /= CoulombNormalization(collisions.Processes[i].Data[j].Energy, 0., Hartree)
 				}
 				break
