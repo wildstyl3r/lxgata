@@ -17,7 +17,7 @@ func CoulombScatteringAngleSample(energy, uParameter, transitionEnergy float64) 
 func BornScatteringAngleSample(energy, transitionEnergy float64) (cosChi float64) {
 	beta := math.Sqrt(1 - transitionEnergy/energy)
 	r := rand.Float64()
-	return 1 - (1-beta*beta)/(2.*beta)*
+	return 1 - (1-beta)*(1-beta)/(2.*beta)*
 		(math.Pow(math.Abs((1.+beta)/(1-beta)), 2.*r)-1.)
 }
 
