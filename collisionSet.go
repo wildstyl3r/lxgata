@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -390,4 +391,16 @@ func (colls Collisions) SampleScatteringAngleCos(energy, transitionEnergy float6
 	default:
 		return 1 - 2*rand.Float64()
 	}
+}
+
+func (colls Collisions) GetTypes() (types []CollisionType) {
+	set := map[CollisionType]struct{}{}
+	for i := range colls.Processes {
+		set[colls.Processes[i].Type] = struct{}{}
+	}
+	for collType := range set {
+		types = append(types, collType)
+	}
+	slices.Sort(types)
+	return types
 }
