@@ -41,6 +41,7 @@ type Collision struct {
 	UpperStatWeight     float64           // statistical weight of upper state of rotational process (for rotations)
 	Info                map[string]string // any additional fields found in collision description
 	Species             string            // target particle species
+	Outcome             string
 }
 
 // CrossSectionAt calculates cross section at given energy as linear interpolation of piecewise linear cross section function.

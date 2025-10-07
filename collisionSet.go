@@ -54,7 +54,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, scatteringMode Scatt
 			collisionType := CollisionType(tokens[0])
 
 			scanner.Scan()
-			species, _, _ := strings.Cut(scanner.Text(), " ")
+			species, outcome, _ := strings.Cut(scanner.Text(), " ")
 
 			scanner.Scan()
 			parameters := strings.Fields(strings.Trim(scanner.Text(), " "))
@@ -166,6 +166,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, scatteringMode Scatt
 				Excitation:      excitationType,
 				MassRatio:       massRatio,
 				Species:         species,
+				Outcome:         outcome,
 				Data:            data,
 				Threshold:       threshold,
 				StatWeightRatio: statWeightRatio,
