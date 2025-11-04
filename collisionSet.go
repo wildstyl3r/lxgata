@@ -19,19 +19,19 @@ const Hartree float64 = 27.0211386 // [eV]
 
 const (
 	Isotropic ScatteringMode = iota
-	AnisotropicAllCoulomb
-	AnisotropicElasticIsotropicInelasticBorn
-	AnisotropicElasticCoulombInelasticBorn
+	Coulomb
+	Born
 )
 
 type Collisions struct {
-	scatteringMode ScatteringMode
-	UParameter     float64 // parameter regulating the shape of differential cross section in the Coulomb model, u_eta in Hagelaar's MCIG paper, equation (32) at page 10
-	Processes      []Collision
+	elasticScatteringMode   ScatteringMode
+	inelasticScatteringMode ScatteringMode
+	UParameter              float64 // parameter regulating the shape of differential cross section in the Coulomb model, u_eta in Hagelaar's MCIG paper, equation (32) at page 10
+	Processes               []Collision
 }
 
 // LoadCrossSections loads cross section data from file in LXCat/BOLSIG format
-func LoadCrossSections(fileName string, forMonteCarlo bool, scatteringMode ScatteringMode, uParameter float64) (Collisions, error) {
+func LoadCrossSections(fileName string, forMonteCarlo bool, elasticScatteringMode, inelasticScatteringMode ScatteringMode, uParameter float64) (Collisions, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return Collisions{}, err
@@ -40,7 +40,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, scatteringMode Scatt
 
 	setProcessTypes := map[string]struct{}{string(ELASTIC): {}, string(EFFECTIVE): {}, string(EXCITATION): {}, string(ATTACHMENT): {}, string(IONIZATION): {}, string(ROTATION): {}}
 
-	var collisions = Collisions{scatteringMode: scatteringMode, UParameter: uParameter}
+	var collisions = Collisions{elasticScatteringMode: elasticScatteringMode, UParameter: uParameter}
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -192,8 +192,8 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, scatteringMode Scatt
 			}
 		}
 	}
-	switch collisions.scatteringMode {
-	case AnisotropicAllCoulomb, AnisotropicElasticCoulombInelasticBorn:
+	switch collisions.elasticScatteringMode {
+	case Coulomb:
 		for i := range len(collisions.Processes) {
 			if collisions.Processes[i].Type == ELASTIC {
 				for j := range collisions.Processes[i].Data {
@@ -374,23 +374,26 @@ func (colls Collisions) MakeEnergyGrid(minStep, maxEnergy float64) []float64 {
 }
 
 func (colls Collisions) SampleScatteringAngleCos(energy, transitionEnergy float64, collisionType CollisionType) (cosChi float64) {
-	switch colls.scatteringMode {
-	case AnisotropicElasticIsotropicInelasticBorn:
-		if collisionType == EFFECTIVE || collisionType == ELASTIC {
-			return 1 - 2*rand.Float64()
-		} else {
-			return BornScatteringAngleSample(energy, transitionEnergy)
-		}
-	case AnisotropicAllCoulomb:
-		return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy)
-	case AnisotropicElasticCoulombInelasticBorn:
-		if collisionType == EFFECTIVE || collisionType == ELASTIC {
+	if collisionType == ELASTIC {
+		switch colls.elasticScatteringMode {
+		case Born:
+			panic("lxgata does not support Born elastic scattering\n")
+		case Coulomb:
 			return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy)
-		} else {
-			return BornScatteringAngleSample(energy, transitionEnergy)
+		// case Isotropic:
+		default:
+			return 1. - 2.*rand.Float64()
 		}
-	default:
-		return 1 - 2*rand.Float64()
+	} else {
+		switch colls.inelasticScatteringMode {
+		case Born:
+			return BornScatteringAngleSample(energy, transitionEnergy)
+		case Coulomb:
+			return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy)
+		// case Isotropic:
+		default:
+			return 1. - 2.*rand.Float64()
+		}
 	}
 }
 
