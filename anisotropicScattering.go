@@ -9,6 +9,8 @@ import (
 
 type AtomicNumber int
 
+const IgnoreAtomicNumber AtomicNumber = 0
+
 func CoulombScatteringAngleSample(energy, uParameter, transitionEnergy float64, z AtomicNumber) (cosChi float64) {
 	r := rand.Float64()
 	eta := CoulombEta(energy, transitionEnergy, uParameter, z)
@@ -16,7 +18,7 @@ func CoulombScatteringAngleSample(energy, uParameter, transitionEnergy float64, 
 }
 
 func CoulombEta(energy, transitionEnergy, uParameter float64, z AtomicNumber) float64 {
-	if z == 0 {
+	if z == IgnoreAtomicNumber {
 		beta := math.Sqrt(1 - transitionEnergy/energy)
 		return uParameter / (8. * beta * beta * energy)
 	} else {
