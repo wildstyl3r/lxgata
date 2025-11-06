@@ -4,6 +4,7 @@ package lxgata
 
 import (
 	"bufio"
+	"fmt"
 	"math"
 	"math/rand"
 	"os"
@@ -18,7 +19,8 @@ type ScatteringMode int
 const Hartree float64 = 27.0211386 // [eV]
 
 const (
-	Isotropic ScatteringMode = iota
+	Incorrect ScatteringMode = iota
+	Isotropic
 	Coulomb
 	Born
 )
@@ -40,7 +42,11 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, elasticScatteringMod
 
 	setProcessTypes := map[string]struct{}{string(ELASTIC): {}, string(EFFECTIVE): {}, string(EXCITATION): {}, string(ATTACHMENT): {}, string(IONIZATION): {}, string(ROTATION): {}}
 
-	var collisions = Collisions{elasticScatteringMode: elasticScatteringMode, UParameter: uParameter}
+	var collisions = Collisions{
+		elasticScatteringMode:   elasticScatteringMode,
+		inelasticScatteringMode: inelasticScatteringMode,
+		UParameter:              uParameter,
+	}
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -193,6 +199,8 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, elasticScatteringMod
 		}
 	}
 	switch collisions.elasticScatteringMode {
+	case Incorrect:
+		panic("elastic scattering mode not set")
 	case Coulomb:
 		for i := range len(collisions.Processes) {
 			if collisions.Processes[i].Type == ELASTIC {
@@ -205,7 +213,9 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, elasticScatteringMod
 				break
 			}
 		}
-	default:
+
+	case Born:
+	case Isotropic:
 	}
 	return collisions, nil
 }
@@ -373,26 +383,28 @@ func (colls Collisions) MakeEnergyGrid(minStep, maxEnergy float64) []float64 {
 	return grid
 }
 
-func (colls Collisions) SampleScatteringAngleCos(energy, transitionEnergy float64, collisionType CollisionType) (cosChi float64) {
+func (colls Collisions) SampleScatteringAngleCos(energy, transitionEnergy float64, collisionType CollisionType, z AtomicNumber) (cosChi float64) {
 	if collisionType == ELASTIC {
 		switch colls.elasticScatteringMode {
 		case Born:
 			panic("lxgata does not support Born elastic scattering\n")
 		case Coulomb:
-			return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy)
-		// case Isotropic:
-		default:
+			return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy, z)
+		case Isotropic:
 			return 1. - 2.*rand.Float64()
+		default:
+			panic(fmt.Sprintf("unexpected lxgata.ScatteringMode: %#v", colls.inelasticScatteringMode))
 		}
 	} else {
 		switch colls.inelasticScatteringMode {
 		case Born:
 			return BornScatteringAngleSample(energy, transitionEnergy)
 		case Coulomb:
-			return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy)
-		// case Isotropic:
-		default:
+			return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy, z)
+		case Isotropic:
 			return 1. - 2.*rand.Float64()
+		default:
+			panic(fmt.Sprintf("unexpected lxgata.ScatteringMode: %#v", colls.inelasticScatteringMode))
 		}
 	}
 }

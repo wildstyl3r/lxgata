@@ -7,11 +7,21 @@ import (
 
 // following Hagelaar's MCIG paper
 
-func CoulombScatteringAngleSample(energy, uParameter, transitionEnergy float64) (cosChi float64) {
-	beta := math.Sqrt(1 - transitionEnergy/energy)
-	eta := uParameter / (8. * beta * beta * energy)
+type AtomicNumber int
+
+func CoulombScatteringAngleSample(energy, uParameter, transitionEnergy float64, z AtomicNumber) (cosChi float64) {
 	r := rand.Float64()
+	eta := CoulombEta(energy, transitionEnergy, uParameter, z)
 	return 1. - 2.*eta*r/(eta+1-r)
+}
+
+func CoulombEta(energy, transitionEnergy, uParameter float64, z AtomicNumber) float64 {
+	if z == 0 {
+		beta := math.Sqrt(1 - transitionEnergy/energy)
+		return uParameter / (8. * beta * beta * energy)
+	} else {
+		return 1.89 * math.Pow(float64(z), 2./3.) / energy
+	}
 }
 
 func BornScatteringAngleSample(energy, transitionEnergy float64) (cosChi float64) {
