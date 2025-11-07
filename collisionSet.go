@@ -225,7 +225,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 	if totalCrossSectionEnergyStep != 0 {
 		tcsCache := make([]float64, int(totalCrossSectionUpTo/totalCrossSectionEnergyStep))
 		for i := range tcsCache {
-			collisions.TotalCrossSectionAtCache[i] = collisions.TotalCrossSectionAt((float64(i) + 0.5) * totalCrossSectionEnergyStep)
+			tcsCache[i] = collisions.TotalCrossSectionAt((float64(i) + 0.5) * totalCrossSectionEnergyStep)
 		}
 		collisions.TotalCrossSectionUpTo = totalCrossSectionUpTo
 		collisions.TotalCrossSectionAtCache = tcsCache
