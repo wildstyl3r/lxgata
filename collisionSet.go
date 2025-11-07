@@ -50,13 +50,6 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 		elasticScatteringMode:   elasticScatteringMode,
 		inelasticScatteringMode: inelasticScatteringMode,
 		UParameter:              uParameter,
-		TotalCrossSectionUpTo:   totalCrossSectionUpTo,
-	}
-
-	if totalCrossSectionEnergyStep != 0 {
-		collisions.TotalCrossSectionAtCache = make([]float64, int(totalCrossSectionUpTo/totalCrossSectionEnergyStep))
-		collisions.TotalCrossSectionEnergyStep = totalCrossSectionEnergyStep
-		collisions.TotalCrossSectionEnergyStepInverse = 1. / totalCrossSectionEnergyStep
 	}
 
 	scanner := bufio.NewScanner(file)
@@ -229,9 +222,18 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 	case Isotropic:
 	}
 
-	for i := range collisions.TotalCrossSectionAtCache {
-		collisions.TotalCrossSectionAtCache[i] = collisions.TotalCrossSectionAt((float64(i) + 0.5) * collisions.TotalCrossSectionEnergyStep)
+	if totalCrossSectionEnergyStep != 0 {
+		tcsCache := make([]float64, int(totalCrossSectionUpTo/totalCrossSectionEnergyStep))
+		for i := range tcsCache {
+			collisions.TotalCrossSectionAtCache[i] = collisions.TotalCrossSectionAt((float64(i) + 0.5) * totalCrossSectionEnergyStep)
+		}
+		collisions.TotalCrossSectionUpTo = totalCrossSectionUpTo
+		collisions.TotalCrossSectionAtCache = tcsCache
+		collisions.TotalCrossSectionEnergyStep = totalCrossSectionEnergyStep
+		collisions.TotalCrossSectionEnergyStepInverse = 1. / totalCrossSectionEnergyStep
+
 	}
+
 	return collisions, nil
 }
 
@@ -297,14 +299,14 @@ func (colls Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
 // TotalCrossSectionAt returns total cross section at given energy for all species and processes in collisions set
 func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 	if energy < colls.TotalCrossSectionUpTo {
-		var result float64
-		for i := range colls.Processes {
-			result += colls.Processes[i].CrossSectionAt(energy)
-		}
-		return result
-	} else {
 		return colls.TotalCrossSectionAtCache[int(energy*colls.TotalCrossSectionEnergyStepInverse)]
 	}
+
+	var result float64
+	for i := range colls.Processes {
+		result += colls.Processes[i].CrossSectionAt(energy)
+	}
+	return result
 }
 
 func (colls Collisions) CrossSectionsAt(energy float64) (result []float64) {
