@@ -47,13 +47,16 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 	setProcessTypes := map[string]struct{}{string(ELASTIC): {}, string(EFFECTIVE): {}, string(EXCITATION): {}, string(ATTACHMENT): {}, string(IONIZATION): {}, string(ROTATION): {}}
 
 	var collisions = Collisions{
-		elasticScatteringMode:              elasticScatteringMode,
-		inelasticScatteringMode:            inelasticScatteringMode,
-		UParameter:                         uParameter,
-		TotalCrossSectionAtCache:           make([]float64, int(totalCrossSectionUpTo/totalCrossSectionEnergyStep)),
-		TotalCrossSectionEnergyStep:        totalCrossSectionEnergyStep,
-		TotalCrossSectionEnergyStepInverse: 1. / totalCrossSectionEnergyStep,
-		TotalCrossSectionUpTo:              totalCrossSectionUpTo,
+		elasticScatteringMode:   elasticScatteringMode,
+		inelasticScatteringMode: inelasticScatteringMode,
+		UParameter:              uParameter,
+		TotalCrossSectionUpTo:   totalCrossSectionUpTo,
+	}
+
+	if totalCrossSectionEnergyStep != 0 {
+		collisions.TotalCrossSectionAtCache = make([]float64, int(totalCrossSectionUpTo/totalCrossSectionEnergyStep))
+		collisions.TotalCrossSectionEnergyStep = totalCrossSectionEnergyStep
+		collisions.TotalCrossSectionEnergyStepInverse = 1. / totalCrossSectionEnergyStep
 	}
 
 	scanner := bufio.NewScanner(file)
