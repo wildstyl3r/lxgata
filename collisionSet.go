@@ -26,14 +26,18 @@ const (
 )
 
 type Collisions struct {
-	elasticScatteringMode   ScatteringMode
-	inelasticScatteringMode ScatteringMode
-	UParameter              float64 // parameter regulating the shape of differential cross section in the Coulomb model, u_eta in Hagelaar's MCIG paper, equation (32) at page 10
-	Processes               []Collision
+	elasticScatteringMode              ScatteringMode
+	inelasticScatteringMode            ScatteringMode
+	UParameter                         float64 // parameter regulating the shape of differential cross section in the Coulomb model, u_eta in Hagelaar's MCIG paper, equation (32) at page 10
+	Processes                          []Collision
+	TotalCrossSectionAtCache           []float64
+	TotalCrossSectionEnergyStep        float64
+	TotalCrossSectionEnergyStepInverse float64
+	TotalCrossSectionUpTo              float64
 }
 
 // LoadCrossSections loads cross section data from file in LXCat/BOLSIG format
-func LoadCrossSections(fileName string, forMonteCarlo bool, elasticScatteringMode, inelasticScatteringMode ScatteringMode, uParameter float64, z AtomicNumber) (Collisions, error) {
+func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEnergyStep, totalCrossSectionUpTo float64, elasticScatteringMode, inelasticScatteringMode ScatteringMode, uParameter float64, z AtomicNumber) (Collisions, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return Collisions{}, err
@@ -43,9 +47,13 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, elasticScatteringMod
 	setProcessTypes := map[string]struct{}{string(ELASTIC): {}, string(EFFECTIVE): {}, string(EXCITATION): {}, string(ATTACHMENT): {}, string(IONIZATION): {}, string(ROTATION): {}}
 
 	var collisions = Collisions{
-		elasticScatteringMode:   elasticScatteringMode,
-		inelasticScatteringMode: inelasticScatteringMode,
-		UParameter:              uParameter,
+		elasticScatteringMode:              elasticScatteringMode,
+		inelasticScatteringMode:            inelasticScatteringMode,
+		UParameter:                         uParameter,
+		TotalCrossSectionAtCache:           make([]float64, int(totalCrossSectionUpTo/totalCrossSectionEnergyStep)),
+		TotalCrossSectionEnergyStep:        totalCrossSectionEnergyStep,
+		TotalCrossSectionEnergyStepInverse: 1. / totalCrossSectionEnergyStep,
+		TotalCrossSectionUpTo:              totalCrossSectionUpTo,
 	}
 
 	scanner := bufio.NewScanner(file)
@@ -217,6 +225,10 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, elasticScatteringMod
 	case Born:
 	case Isotropic:
 	}
+
+	for i := range collisions.TotalCrossSectionAtCache {
+		collisions.TotalCrossSectionAtCache[i] = collisions.TotalCrossSectionAt((float64(i) + 0.5) * collisions.TotalCrossSectionEnergyStep)
+	}
 	return collisions, nil
 }
 
@@ -281,11 +293,15 @@ func (colls Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
 
 // TotalCrossSectionAt returns total cross section at given energy for all species and processes in collisions set
 func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
-	var result float64
-	for i := range colls.Processes {
-		result += colls.Processes[i].CrossSectionAt(energy)
+	if energy < colls.TotalCrossSectionUpTo {
+		var result float64
+		for i := range colls.Processes {
+			result += colls.Processes[i].CrossSectionAt(energy)
+		}
+		return result
+	} else {
+		return colls.TotalCrossSectionAtCache[int(energy*colls.TotalCrossSectionEnergyStepInverse)]
 	}
-	return result
 }
 
 func (colls Collisions) CrossSectionsAt(energy float64) (result []float64) {
