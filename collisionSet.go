@@ -33,7 +33,7 @@ type Collisions struct {
 }
 
 // LoadCrossSections loads cross section data from file in LXCat/BOLSIG format
-func LoadCrossSections(fileName string, forMonteCarlo bool, elasticScatteringMode, inelasticScatteringMode ScatteringMode, uParameter float64) (Collisions, error) {
+func LoadCrossSections(fileName string, forMonteCarlo bool, elasticScatteringMode, inelasticScatteringMode ScatteringMode, uParameter float64, z AtomicNumber) (Collisions, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return Collisions{}, err
@@ -208,7 +208,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, elasticScatteringMod
 					if j == 0 {
 						break
 					}
-					collisions.Processes[i].Data[j].Value /= CoulombNormalization(collisions.Processes[i].Data[j].Energy, 0., Hartree)
+					collisions.Processes[i].Data[j].Value /= CoulombNormalization(collisions.Processes[i].Data[j].Energy, 0., Hartree, z)
 				}
 				break
 			}
