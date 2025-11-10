@@ -230,7 +230,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 		tcsCache := make([]float64, numberOfSteps)
 		for step := range fixedStepTable {
 			fixedStepTable[step] = make([]float64, len(collisions.Processes))
-			for process := range collisions.FixedStepTable[step] {
+			for process := range fixedStepTable[step] {
 				fixedStepTable[step][process] = collisions.Processes[process].CrossSectionAt((float64(step) + 0.5) * totalCrossSectionEnergyStep)
 			}
 			tcsCache[step] = SumFloat64Slice(fixedStepTable[step])
