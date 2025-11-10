@@ -26,14 +26,16 @@ const (
 )
 
 type Collisions struct {
-	elasticScatteringMode              ScatteringMode
-	inelasticScatteringMode            ScatteringMode
-	UParameter                         float64 // parameter regulating the shape of differential cross section in the Coulomb model, u_eta in Hagelaar's MCIG paper, equation (32) at page 10
-	Processes                          []Collision
-	TotalCrossSectionAtCache           []float64
-	TotalCrossSectionEnergyStep        float64
-	TotalCrossSectionEnergyStepInverse float64
-	TotalCrossSectionUpTo              float64
+	elasticScatteringMode    ScatteringMode
+	inelasticScatteringMode  ScatteringMode
+	UParameter               float64 // parameter regulating the shape of differential cross section in the Coulomb model, u_eta in Hagelaar's MCIG paper, equation (32) at page 10
+	Processes                []Collision
+	TotalCrossSectionAtCache []float64
+	FixedStepTable           [][]float64
+	EnergyStep               float64
+	EnergyStepInverse        float64
+	TotalCrossSectionUpTo    float64
+	MaxTCS                   float64
 }
 
 // LoadCrossSections loads cross section data from file in LXCat/BOLSIG format
@@ -223,15 +225,22 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 	}
 
 	if totalCrossSectionEnergyStep != 0 {
-		tcsCache := make([]float64, int(totalCrossSectionUpTo/totalCrossSectionEnergyStep))
-		for i := range tcsCache {
-			tcsCache[i] = collisions.TotalCrossSectionAt((float64(i) + 0.5) * totalCrossSectionEnergyStep)
+		numberOfSteps := int(totalCrossSectionUpTo / totalCrossSectionEnergyStep)
+		fixedStepTable := make([][]float64, numberOfSteps)
+		tcsCache := make([]float64, numberOfSteps)
+		for step := range collisions.FixedStepTable {
+			fixedStepTable[step] = make([]float64, len(collisions.Processes))
+			for process := range collisions.FixedStepTable[step] {
+				fixedStepTable[step][process] = collisions.Processes[process].CrossSectionAt((float64(step) + 0.5) * totalCrossSectionEnergyStep)
+			}
+			tcsCache[step] = SumFloat64Slice(fixedStepTable[step])
 		}
+		collisions.FixedStepTable = fixedStepTable
 		collisions.TotalCrossSectionUpTo = totalCrossSectionUpTo
 		collisions.TotalCrossSectionAtCache = tcsCache
-		collisions.TotalCrossSectionEnergyStep = totalCrossSectionEnergyStep
-		collisions.TotalCrossSectionEnergyStepInverse = 1. / totalCrossSectionEnergyStep
-
+		collisions.EnergyStep = totalCrossSectionEnergyStep
+		collisions.EnergyStepInverse = 1. / totalCrossSectionEnergyStep
+		collisions.MaxTCS = slices.Max(collisions.TotalCrossSectionAtCache)
 	}
 
 	return collisions, nil
@@ -299,7 +308,7 @@ func (colls Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
 // TotalCrossSectionAt returns total cross section at given energy for all species and processes in collisions set
 func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 	if energy < colls.TotalCrossSectionUpTo {
-		return colls.TotalCrossSectionAtCache[int(energy*colls.TotalCrossSectionEnergyStepInverse)]
+		return colls.TotalCrossSectionAtCache[int(energy*colls.EnergyStepInverse)]
 	}
 
 	var result float64
@@ -310,6 +319,9 @@ func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 }
 
 func (colls Collisions) CrossSectionsAt(energy float64) (result []float64) {
+	if energy < colls.TotalCrossSectionUpTo {
+		return colls.FixedStepTable[int(energy*colls.EnergyStepInverse)]
+	}
 	result = make([]float64, len(colls.Processes))
 	for i := range colls.Processes {
 		result[i] = colls.Processes[i].CrossSectionAt(energy)
@@ -351,6 +363,9 @@ func (colls Collisions) MinThresholdOfKind(t CollisionType) float64 {
 // SurplusCrossSection returns sum of maximum values of cross sections over all processes in collision set
 // Can be used to estimate lower bound on mean free path
 func (colls Collisions) SurplusCrossSection() float64 {
+	if colls.MaxTCS != 0 {
+		return colls.MaxTCS
+	}
 	var result float64
 	for i := range colls.Processes {
 		var max float64
