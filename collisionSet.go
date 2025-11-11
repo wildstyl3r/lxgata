@@ -231,7 +231,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 		for step := range fixedStepTable {
 			fixedStepTable[step] = make([]float64, len(collisions.Processes))
 			for process := range fixedStepTable[step] {
-				fixedStepTable[step][process] = collisions.Processes[process].CrossSectionAt((float64(step) + 0.5) * totalCrossSectionEnergyStep)
+				fixedStepTable[step][process] = collisions.Processes[process].CrossSectionAt(float64(step) * totalCrossSectionEnergyStep)
 			}
 			tcsCache[step] = SumFloat64Slice(fixedStepTable[step])
 		}
@@ -308,7 +308,10 @@ func (colls Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
 // TotalCrossSectionAt returns total cross section at given energy for all species and processes in collisions set
 func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 	if energy < colls.TotalCrossSectionUpTo {
-		return colls.TotalCrossSectionAtCache[int(energy*colls.EnergyStepInverse)]
+		step := math.Floor(energy * colls.EnergyStepInverse)
+		delta := energy - step*colls.EnergyStep
+		i := int(step)
+		return linearInterpolation(colls.TotalCrossSectionAtCache[i], colls.TotalCrossSectionAtCache[i+1], delta/step)
 	}
 
 	var result float64
@@ -318,9 +321,25 @@ func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
 	return result
 }
 
+func linearInterpolation(a, b, t float64) float64 {
+	if t < 0.5 {
+		return math.FMA(b-a, t, a)
+	} else {
+		return math.FMA(b-a, 1-t, b)
+	}
+}
+
 func (colls Collisions) CrossSectionsAt(energy float64) (result []float64) {
 	if energy < colls.TotalCrossSectionUpTo {
-		return colls.FixedStepTable[int(energy*colls.EnergyStepInverse)]
+		step := math.Floor(energy * colls.EnergyStepInverse)
+		delta := energy - step*colls.EnergyStep
+		i := int(step)
+		result = make([]float64, len(colls.FixedStepTable[i]))
+		t := delta / step
+		for j := range result {
+			result[j] = linearInterpolation(colls.FixedStepTable[i][j], colls.FixedStepTable[i+1][j], t)
+		}
+		return
 	}
 	result = make([]float64, len(colls.Processes))
 	for i := range colls.Processes {
