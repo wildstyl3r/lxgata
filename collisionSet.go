@@ -307,13 +307,13 @@ func (colls Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
 
 // TotalCrossSectionAt returns total cross section at given energy for all species and processes in collisions set
 func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
-	if energy < colls.TotalCrossSectionUpTo {
-		step := math.Floor(energy * colls.EnergyStepInverse)
+	step := math.Floor(energy * colls.EnergyStepInverse)
+	if i := int(step); energy < colls.TotalCrossSectionUpTo && i < len(colls.TotalCrossSectionAtCache) {
 		if step < 1e-3 {
 			return 0
 		}
 		delta := energy - step*colls.EnergyStep
-		i := int(step)
+
 		return linearInterpolation(colls.TotalCrossSectionAtCache[i], colls.TotalCrossSectionAtCache[i+1], delta/step)
 	}
 
@@ -333,10 +333,9 @@ func linearInterpolation(a, b, t float64) float64 {
 }
 
 func (colls Collisions) CrossSectionsAt(energy float64) (result []float64) {
-	if energy < colls.TotalCrossSectionUpTo {
-		step := math.Floor(energy * colls.EnergyStepInverse)
+	step := math.Floor(energy * colls.EnergyStepInverse)
+	if i := int(step); energy < colls.TotalCrossSectionUpTo && i < len(colls.FixedStepTable) {
 		delta := energy - step*colls.EnergyStep
-		i := int(step)
 		result = make([]float64, len(colls.FixedStepTable[i]))
 		if step < 1e-3 {
 			return result
