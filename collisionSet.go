@@ -332,23 +332,45 @@ func linearInterpolation(a, b, t float64) float64 {
 	}
 }
 
+func (colls Collisions) SampleWithNullCollision(energy, totalCSPrimed float64) *Collision {
+	choice := rand.Float64() * totalCSPrimed
+	accum := 0.
+	step := math.Floor(energy * colls.EnergyStepInverse)
+	if stepI := int(step); energy < colls.TotalCrossSectionUpTo && stepI+1 < len(colls.FixedStepTable) {
+		t := (energy - step*colls.EnergyStep) / colls.EnergyStep
+		for p := range colls.Processes {
+			accum += linearInterpolation(colls.FixedStepTable[stepI][p], colls.FixedStepTable[stepI+1][p], t)
+			if choice < accum {
+				return &colls.Processes[p]
+			}
+		}
+	} else {
+		for p := range colls.Processes {
+			accum += colls.Processes[p].CrossSectionAt(energy)
+			if choice < accum {
+				return &colls.Processes[p]
+			}
+		}
+	}
+	return nil
+}
+
 func (colls Collisions) CrossSectionsAt(energy float64) (result []float64) {
 	step := math.Floor(energy * colls.EnergyStepInverse)
 	if i := int(step); energy < colls.TotalCrossSectionUpTo && i+1 < len(colls.FixedStepTable) {
-		delta := energy - step*colls.EnergyStep
 		result = make([]float64, len(colls.FixedStepTable[i]))
 		if step < 1e-3 {
 			return result
 		}
-		t := delta / step
+		t := (energy - step*colls.EnergyStep) / step
 		for j := range result {
 			result[j] = linearInterpolation(colls.FixedStepTable[i][j], colls.FixedStepTable[i+1][j], t)
 		}
 		return
 	}
 	result = make([]float64, len(colls.Processes))
-	for i := range colls.Processes {
-		result[i] = colls.Processes[i].CrossSectionAt(energy)
+	for p := range colls.Processes {
+		result[p] = colls.Processes[p].CrossSectionAt(energy)
 	}
 	return
 }
