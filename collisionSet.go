@@ -216,6 +216,9 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 					}
 					collisions.Processes[i].Data[j].Value /= CoulombNormalization(collisions.Processes[i].Data[j].Energy, 0., Hartree, z)
 				}
+				for i := 0; i+1 < len(collisions.Processes[i].Data); i++ {
+					collisions.Processes[i].Data[i]._NextValDiffPerEnergyDiff = (collisions.Processes[i].Data[i+1].Value - collisions.Processes[i].Data[i].Value) / (collisions.Processes[i].Data[i+1].Energy - collisions.Processes[i].Data[i].Energy)
+				}
 				break
 			}
 		}
