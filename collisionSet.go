@@ -208,16 +208,16 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 	case Incorrect:
 		panic("elastic scattering mode not set")
 	case Coulomb:
-		for i := range len(collisions.Processes) {
-			if collisions.Processes[i].Type == ELASTIC {
-				for j := range collisions.Processes[i].Data {
+		for p := range len(collisions.Processes) {
+			if collisions.Processes[p].Type == ELASTIC {
+				for j := range collisions.Processes[p].Data {
 					if j == 0 {
 						break
 					}
-					collisions.Processes[i].Data[j].Value /= CoulombNormalization(collisions.Processes[i].Data[j].Energy, 0., Hartree, z)
+					collisions.Processes[p].Data[j].Value /= CoulombNormalization(collisions.Processes[p].Data[j].Energy, 0., Hartree, z)
 				}
-				for i := 0; i+1 < len(collisions.Processes[i].Data); i++ {
-					collisions.Processes[i].Data[i]._NextValDiffPerEnergyDiff = (collisions.Processes[i].Data[i+1].Value - collisions.Processes[i].Data[i].Value) / (collisions.Processes[i].Data[i+1].Energy - collisions.Processes[i].Data[i].Energy)
+				for i := 0; i+1 < len(collisions.Processes[p].Data); i++ {
+					collisions.Processes[p].Data[i]._NextValDiffPerEnergyDiff = (collisions.Processes[p].Data[i+1].Value - collisions.Processes[p].Data[i].Value) / (collisions.Processes[p].Data[i+1].Energy - collisions.Processes[p].Data[i].Energy)
 				}
 				break
 			}
