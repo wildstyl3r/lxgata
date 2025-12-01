@@ -227,7 +227,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 	case Isotropic:
 	}
 
-	if totalCrossSectionEnergyStep != 0 {
+	if totalCrossSectionEnergyStep != 0 && totalCrossSectionUpTo != 0 {
 		numberOfSteps := int(totalCrossSectionUpTo / totalCrossSectionEnergyStep)
 		fixedStepTable := make([][]float64, numberOfSteps)
 		tcsCache := make([]float64, numberOfSteps)
@@ -243,7 +243,9 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 		collisions.TotalCrossSectionAtCache = tcsCache
 		collisions.EnergyStep = totalCrossSectionEnergyStep
 		collisions.EnergyStepInverse = 1. / totalCrossSectionEnergyStep
-		collisions.MaxTCS = slices.Max(collisions.TotalCrossSectionAtCache)
+		if len(collisions.TotalCrossSectionAtCache) > 0 {
+			collisions.MaxTCS = slices.Max(collisions.TotalCrossSectionAtCache)
+		}
 	}
 
 	return collisions, nil
