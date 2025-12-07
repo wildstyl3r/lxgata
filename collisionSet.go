@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/pokeyaro/algo-ds-go/ds/tree/segment"
 )
 
 type ScatteringMode int
@@ -31,12 +33,17 @@ type Collisions struct {
 	UParameter               float64 // parameter regulating the shape of differential cross section in the Coulomb model, u_eta in Hagelaar's MCIG paper, equation (32) at page 10
 	Processes                []Collision
 	TotalCrossSectionAtCache []float64
+	MaxTCSRangeTree          *segment.SegmentTree[float64]
 	FixedStepTable           [][]float64
 	EnergyStep               float64
 	EnergyStepInverse        float64
 	TotalCrossSectionUpTo    float64
 	MaxTCS                   float64
 }
+
+type maxOverFloat64 struct{}
+
+func (maxOverFloat64) Merge(a, b float64) float64 { return max(a, b) }
 
 // LoadCrossSections loads cross section data from file in LXCat/BOLSIG format
 func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEnergyStep, totalCrossSectionUpTo float64, elasticScatteringMode, inelasticScatteringMode ScatteringMode, uParameter float64, z AtomicNumber) (Collisions, error) {
@@ -245,6 +252,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 		collisions.EnergyStepInverse = 1. / totalCrossSectionEnergyStep
 		if len(collisions.TotalCrossSectionAtCache) > 0 {
 			collisions.MaxTCS = slices.Max(collisions.TotalCrossSectionAtCache)
+			collisions.MaxTCSRangeTree = segment.NewSegmentTree(collisions.TotalCrossSectionAtCache, maxOverFloat64{})
 		}
 	}
 
@@ -282,7 +290,7 @@ func SumFloat64Slice(arr []float64) (sum float64) { // Kahan's algorithm
 	return sum
 }
 
-func (colls Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
+func (colls *Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
 	effectiveIndex := -1
 	for i := range colls.Processes {
 		if colls.Processes[i].Type == EFFECTIVE {
@@ -311,7 +319,7 @@ func (colls Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
 }
 
 // TotalCrossSectionAt returns total cross section at given energy for all species and processes in collisions set
-func (colls Collisions) TotalCrossSectionAt(energy float64) float64 {
+func (colls *Collisions) TotalCrossSectionAt(energy float64) float64 {
 	step := math.Floor(energy * colls.EnergyStepInverse)
 	if i := int(step); energy < colls.TotalCrossSectionUpTo && i+1 < len(colls.TotalCrossSectionAtCache) {
 		if step < 1e-3 {
@@ -337,7 +345,7 @@ func linearInterpolation(a, b, t float64) float64 {
 	}
 }
 
-func (colls Collisions) SampleWithNullCollision(energy, totalCSPrimed float64) *Collision {
+func (colls *Collisions) SampleWithNullCollision(energy, totalCSPrimed float64) *Collision {
 	choice := rand.Float64() * totalCSPrimed
 	accum := 0.
 	step := math.Floor(energy * colls.EnergyStepInverse)
@@ -360,7 +368,7 @@ func (colls Collisions) SampleWithNullCollision(energy, totalCSPrimed float64) *
 	return nil
 }
 
-func (colls Collisions) CrossSectionsAt(energy float64) (result []float64) {
+func (colls *Collisions) CrossSectionsAt(energy float64) (result []float64) {
 	step := math.Floor(energy * colls.EnergyStepInverse)
 	if i := int(step); energy < colls.TotalCrossSectionUpTo && i+1 < len(colls.FixedStepTable) {
 		result = make([]float64, len(colls.FixedStepTable[i]))
@@ -381,7 +389,7 @@ func (colls Collisions) CrossSectionsAt(energy float64) (result []float64) {
 }
 
 // TotalCrossSectionOfKindAt returns summed cross section of given type at given energy for all species and processes in collision set
-func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float64) float64 {
+func (colls *Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float64) float64 {
 	var result float64
 	for i := range colls.Processes {
 		if colls.Processes[i].Type == t {
@@ -391,7 +399,7 @@ func (colls Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float6
 	return result
 }
 
-func (colls Collisions) MinThreshold() float64 {
+func (colls *Collisions) MinThreshold() float64 {
 	var result = math.MaxFloat64
 	for i := range colls.Processes {
 		if colls.Processes[i].Threshold != 0 && colls.Processes[i].Threshold < result {
@@ -401,7 +409,7 @@ func (colls Collisions) MinThreshold() float64 {
 	return result
 }
 
-func (colls Collisions) MinThresholdOfKind(t CollisionType) float64 {
+func (colls *Collisions) MinThresholdOfKind(t CollisionType) float64 {
 	var result = math.MaxFloat64
 	for i := range colls.Processes {
 		if colls.Processes[i].Threshold != 0 && colls.Processes[i].Threshold < result && colls.Processes[i].Type == t {
@@ -413,7 +421,7 @@ func (colls Collisions) MinThresholdOfKind(t CollisionType) float64 {
 
 // SurplusCrossSection returns sum of maximum values of cross sections over all processes in collision set
 // Can be used to estimate lower bound on mean free path
-func (colls Collisions) SurplusCrossSection() float64 {
+func (colls *Collisions) SurplusCrossSection() float64 {
 	if colls.MaxTCS != 0 {
 		return colls.MaxTCS
 	}
@@ -430,7 +438,15 @@ func (colls Collisions) SurplusCrossSection() float64 {
 	return result
 }
 
-func (colls Collisions) MakeEnergyGrid(minStep, maxEnergy float64) []float64 {
+func (colls *Collisions) MaxTotalCrossSectionOverRange(e1, e2 float64) float64 {
+	if len(colls.TotalCrossSectionAtCache) == 0 {
+		return colls.SurplusCrossSection()
+	}
+	eIndex1, eIndex2 := int(math.Floor(e1/colls.EnergyStep)), min(int(math.Ceil(e2/colls.EnergyStep)), len(colls.TotalCrossSectionAtCache)-1)
+	return colls.MaxTCSRangeTree.Query(eIndex1, eIndex2)
+}
+
+func (colls *Collisions) MakeEnergyGrid(minStep, maxEnergy float64) []float64 {
 	for i := range colls.Processes {
 		maxEnergy = max(maxEnergy, colls.Processes[i].Data[len(colls.Processes[i].Data)-1].Energy)
 	}
@@ -470,7 +486,7 @@ func (colls Collisions) MakeEnergyGrid(minStep, maxEnergy float64) []float64 {
 	return grid
 }
 
-func (colls Collisions) SampleScatteringAngleCos(energy, transitionEnergy float64, collisionType CollisionType, z AtomicNumber) (cosChi float64) {
+func (colls *Collisions) SampleScatteringAngleCos(energy, transitionEnergy float64, collisionType CollisionType, z AtomicNumber) (cosChi float64) {
 	if collisionType == ELASTIC {
 		switch colls.elasticScatteringMode {
 		case Born:
@@ -496,7 +512,7 @@ func (colls Collisions) SampleScatteringAngleCos(energy, transitionEnergy float6
 	}
 }
 
-func (colls Collisions) GetTypes() (types []CollisionType) {
+func (colls *Collisions) GetTypes() (types []CollisionType) {
 	set := map[CollisionType]struct{}{}
 	for i := range colls.Processes {
 		set[colls.Processes[i].Type] = struct{}{}
