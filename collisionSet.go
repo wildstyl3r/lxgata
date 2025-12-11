@@ -27,11 +27,17 @@ const (
 	Born
 )
 
+type Species struct {
+	ShareOfUnity float64
+	UParameter   float64
+}
+
 type Collisions struct {
-	elasticScatteringMode    ScatteringMode
-	inelasticScatteringMode  ScatteringMode
-	UParameter               float64 // parameter regulating the shape of differential cross section in the Coulomb model, u_eta in Hagelaar's MCIG paper, equation (32) at page 10
+	elasticScatteringMode   ScatteringMode
+	inelasticScatteringMode ScatteringMode
+	// UParameter               float64 // parameter regulating the shape of differential cross section in the Coulomb model, u_eta in Hagelaar's MCIG paper, equation (32) at page 10
 	Processes                []Collision
+	Species                  map[string]Species
 	TotalCrossSectionAtCache []float64
 	MaxTCSRangeTree          *segment.SegmentTree[float64]
 	FixedStepTable           [][]float64
@@ -46,7 +52,7 @@ type maxOverFloat64 struct{}
 func (maxOverFloat64) Merge(a, b float64) float64 { return max(a, b) }
 
 // LoadCrossSections loads cross section data from file in LXCat/BOLSIG format
-func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEnergyStep, totalCrossSectionUpTo float64, elasticScatteringMode, inelasticScatteringMode ScatteringMode, uParameter float64, z AtomicNumber) (Collisions, error) {
+func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEnergyStep, totalCrossSectionUpTo float64, elasticScatteringMode, inelasticScatteringMode ScatteringMode, uParameter float64, z AtomicNumber, species map[string]Species) (Collisions, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return Collisions{}, err
@@ -58,7 +64,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 	var collisions = Collisions{
 		elasticScatteringMode:   elasticScatteringMode,
 		inelasticScatteringMode: inelasticScatteringMode,
-		UParameter:              uParameter,
+		Species:                 species,
 	}
 
 	scanner := bufio.NewScanner(file)
@@ -241,7 +247,8 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 		for step := range fixedStepTable {
 			fixedStepTable[step] = make([]float64, len(collisions.Processes))
 			for process := range fixedStepTable[step] {
-				fixedStepTable[step][process] = collisions.Processes[process].CrossSectionAt(float64(step) * totalCrossSectionEnergyStep)
+				share := collisions.Species[collisions.Processes[process].Species].ShareOfUnity
+				fixedStepTable[step][process] = share * collisions.Processes[process].CrossSectionAt(float64(step)*totalCrossSectionEnergyStep)
 			}
 			tcsCache[step] = SumFloat64Slice(fixedStepTable[step])
 		}
@@ -332,7 +339,8 @@ func (colls *Collisions) TotalCrossSectionAt(energy float64) float64 {
 
 	var result float64
 	for i := range colls.Processes {
-		result += colls.Processes[i].CrossSectionAt(energy)
+		share := colls.Species[colls.Processes[i].Species].ShareOfUnity
+		result += share * colls.Processes[i].CrossSectionAt(energy)
 	}
 	return result
 }
@@ -359,7 +367,8 @@ func (colls *Collisions) SampleWithNullCollision(energy, totalCSPrimed float64) 
 		}
 	} else {
 		for p := range colls.Processes {
-			accum += colls.Processes[p].CrossSectionAt(energy)
+			share := colls.Species[colls.Processes[p].Species].ShareOfUnity
+			accum += share * colls.Processes[p].CrossSectionAt(energy)
 			if choice < accum {
 				return &colls.Processes[p]
 			}
@@ -383,7 +392,8 @@ func (colls *Collisions) CrossSectionsAt(energy float64) (result []float64) {
 	}
 	result = make([]float64, len(colls.Processes))
 	for p := range colls.Processes {
-		result[p] = colls.Processes[p].CrossSectionAt(energy)
+		share := colls.Species[colls.Processes[p].Species].ShareOfUnity
+		result[p] = share * colls.Processes[p].CrossSectionAt(energy)
 	}
 	return
 }
@@ -393,7 +403,8 @@ func (colls *Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float
 	var result float64
 	for i := range colls.Processes {
 		if colls.Processes[i].Type == t {
-			result += colls.Processes[i].CrossSectionAt(energy)
+			share := colls.Species[colls.Processes[i].Species].ShareOfUnity
+			result += share * colls.Processes[i].CrossSectionAt(energy)
 		}
 	}
 	return result
@@ -486,13 +497,13 @@ func (colls *Collisions) MakeEnergyGrid(minStep, maxEnergy float64) []float64 {
 	return grid
 }
 
-func (colls *Collisions) SampleScatteringAngleCos(energy, transitionEnergy float64, collisionType CollisionType, z AtomicNumber) (cosChi float64) {
+func (colls *Collisions) SampleScatteringAngleCos(energy, transitionEnergy float64, collisionType CollisionType, z AtomicNumber, species string) (cosChi float64) {
 	if collisionType == ELASTIC {
 		switch colls.elasticScatteringMode {
 		case Born:
 			panic("lxgata does not support Born elastic scattering\n")
 		case Coulomb:
-			return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy, z)
+			return CoulombScatteringAngleSample(energy, colls.Species[species].UParameter, transitionEnergy, z)
 		case Isotropic:
 			return 1. - 2.*rand.Float64()
 		default:
@@ -503,7 +514,7 @@ func (colls *Collisions) SampleScatteringAngleCos(energy, transitionEnergy float
 		case Born:
 			return BornScatteringAngleSample(energy, transitionEnergy)
 		case Coulomb:
-			return CoulombScatteringAngleSample(energy, colls.UParameter, transitionEnergy, z)
+			return CoulombScatteringAngleSample(energy, colls.Species[species].UParameter, transitionEnergy, z)
 		case Isotropic:
 			return 1. - 2.*rand.Float64()
 		default:
