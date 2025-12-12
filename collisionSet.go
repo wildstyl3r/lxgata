@@ -79,7 +79,10 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 			collisionType := CollisionType(tokens[0])
 
 			scanner.Scan()
-			species, outcome, _ := strings.Cut(scanner.Text(), " ")
+			species, outcome, _ := strings.Cut(scanner.Text(), "->")
+			species, makeInverse := strings.CutSuffix(species, "<")
+			species = strings.Trim(species, " ")
+			outcome = strings.Trim(outcome, " ")
 
 			scanner.Scan()
 			parameters := strings.Fields(strings.Trim(scanner.Text(), " "))
@@ -201,6 +204,19 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 				UpperStatWeight: upperStatWeight,
 				Info:            info,
 			})
+
+			if makeInverse && collisions.Processes[len(collisions.Processes)-1].Type == EXCITATION {
+				collisions.Processes = append(collisions.Processes, Collision{
+					Type:            DEEXCITATION,
+					Excitation:      excitationType,
+					MassRatio:       massRatio,
+					Species:         outcome,
+					Outcome:         species,
+					Data:            data,
+					Threshold:       -threshold,
+					StatWeightRatio: 1. / statWeightRatio,
+				})
+			}
 		}
 	}
 	if forMonteCarlo {
@@ -396,18 +412,6 @@ func (colls *Collisions) CrossSectionsAt(energy float64) (result []float64) {
 		result[p] = share * colls.Processes[p].CrossSectionAt(energy)
 	}
 	return
-}
-
-// TotalCrossSectionOfKindAt returns summed cross section of given type at given energy for all species and processes in collision set
-func (colls *Collisions) TotalCrossSectionOfKindAt(t CollisionType, energy float64) float64 {
-	var result float64
-	for i := range colls.Processes {
-		if colls.Processes[i].Type == t {
-			share := colls.Species[colls.Processes[i].Species].ShareOfUnity
-			result += share * colls.Processes[i].CrossSectionAt(energy)
-		}
-	}
-	return result
 }
 
 func (colls *Collisions) MinThreshold() float64 {
