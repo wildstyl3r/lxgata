@@ -46,6 +46,9 @@ type Collision struct {
 func (p *Collision) CrossSectionAt(energy float64) (value float64) {
 	if p.Type == DEEXCITATION {
 		//threshold was set as negative to that of forward process for simplicity
+		if energy < 1e-8 {
+			return 0
+		}
 		factor := p.StatWeightRatio * (energy - p.Threshold) / energy
 		energy -= p.Threshold
 		var l, r uint = 0, uint(len(p.Data))
