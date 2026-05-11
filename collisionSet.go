@@ -226,7 +226,7 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 					Type:      ELASTIC,
 					MassRatio: collisions.Processes[i].MassRatio,
 					Species:   collisions.Processes[i].Species,
-					Data:      collisions.CalculateElasticFromEffective(),
+					Data:      collisions.CalculateElasticFromEffective(collisions.Processes[i].Species),
 					Info:      collisions.Processes[i].Info,
 				}), collisions.Processes[i+1:]...)
 				break
@@ -313,10 +313,10 @@ func SumFloat64Slice(arr []float64) (sum float64) { // Kahan's algorithm
 	return sum
 }
 
-func (colls *Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
+func (colls *Collisions) CalculateElasticFromEffective(species string) []CrossSectionPoint {
 	effectiveIndex := -1
 	for i := range colls.Processes {
-		if colls.Processes[i].Type == EFFECTIVE {
+		if colls.Processes[i].Type == EFFECTIVE && colls.Processes[i].Species == species {
 			effectiveIndex = i
 		}
 	}
@@ -329,7 +329,7 @@ func (colls *Collisions) CalculateElasticFromEffective() []CrossSectionPoint {
 		inelasticSumTerms := make([]float64, 0, len(colls.Processes)-1)
 		energy := colls.Processes[effectiveIndex].Data[i].Energy
 		for process := range colls.Processes {
-			if colls.Processes[process].Type != EFFECTIVE && colls.Processes[process].Type != ELASTIC {
+			if colls.Processes[process].Type != EFFECTIVE && colls.Processes[process].Type != ELASTIC && colls.Processes[process].Species == species {
 				inelasticSumTerms = append(inelasticSumTerms, colls.Processes[process].CrossSectionAt(energy))
 			}
 		}
