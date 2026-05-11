@@ -257,6 +257,11 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 	}
 
 	if totalCrossSectionEnergyStep != 0 && totalCrossSectionUpTo != 0 {
+		thresholdUpperCells := make([]int, len(collisions.Processes))
+		for p := range collisions.Processes {
+			thresholdUpperCells[p] = int(math.Ceil(collisions.Processes[p].Threshold / totalCrossSectionEnergyStep))
+		}
+
 		numberOfSteps := int(totalCrossSectionUpTo / totalCrossSectionEnergyStep)
 		fixedStepTable := make([][]float64, numberOfSteps)
 		tcsCache := make([]float64, numberOfSteps)
@@ -264,7 +269,11 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 			fixedStepTable[step] = make([]float64, len(collisions.Processes))
 			for process := range fixedStepTable[step] {
 				share := collisions.Species[collisions.Processes[process].Species].ShareOfUnity
-				fixedStepTable[step][process] = share * collisions.Processes[process].CrossSectionAt(float64(step)*totalCrossSectionEnergyStep)
+				if step != thresholdUpperCells[process] {
+					fixedStepTable[step][process] = share * collisions.Processes[process].CrossSectionAt(float64(step)*totalCrossSectionEnergyStep)
+				} else {
+					fixedStepTable[step][process] = 0
+				}
 			}
 			tcsCache[step] = SumFloat64Slice(fixedStepTable[step])
 		}
