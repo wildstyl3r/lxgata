@@ -51,15 +51,39 @@ type maxOverFloat64 struct{}
 
 func (maxOverFloat64) Merge(a, b float64) float64 { return max(a, b) }
 
+func readRawCSTable(scanner *bufio.Scanner, threshold float64) (data []CrossSectionPoint, err error) {
+	for !strings.HasPrefix(scanner.Text(), "-----") {
+		crossSectionPoint := strings.Fields(scanner.Text())
+		energy, err := strconv.ParseFloat(crossSectionPoint[0], 64)
+		if err != nil {
+			return nil, err
+		}
+
+		crossSection, err := strconv.ParseFloat(crossSectionPoint[1], 64)
+		if err != nil {
+			return nil, err
+		}
+		if threshold < energy {
+			data = append(data, CrossSectionPoint{energy, crossSection, 0.})
+		}
+		scanner.Scan()
+	}
+	return
+}
+
 // LoadCrossSections loads cross section data from file in LXCat/BOLSIG format
-func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEnergyStep, totalCrossSectionUpTo float64, elasticScatteringMode, inelasticScatteringMode ScatteringMode, uParameter float64, z AtomicNumber, species map[string]Species) (Collisions, error) {
+func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEnergyStep, totalCrossSectionUpTo float64, elasticScatteringMode, inelasticScatteringMode ScatteringMode, uParameter float64, z AtomicNumber, species map[string]Species, firstTarget string) (Collisions, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return Collisions{}, err
 	}
 	defer file.Close()
 
-	setProcessTypes := map[string]struct{}{string(ELASTIC): {}, string(EFFECTIVE): {}, string(EXCITATION): {}, string(ATTACHMENT): {}, string(IONIZATION): {}, string(ROTATION): {}}
+	electronScatteringProcessTypes := map[CollisionType]struct{}{
+		ELASTIC: {}, EFFECTIVE: {}, EXCITATION: {}, ATTACHMENT: {}, IONIZATION: {}, ROTATION: {}}
+	ionScatteringProcessTypes := map[CollisionType]struct{}{
+		ION_ISOTROPIC: {}, ION_BACKSCATTERING: {},
+	}
 
 	var collisions = Collisions{
 		elasticScatteringMode:   elasticScatteringMode,
@@ -75,9 +99,8 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 			continue
 		}
 
-		if _, ok := setProcessTypes[tokens[0]]; ok {
-			collisionType := CollisionType(tokens[0])
-
+		collisionType := CollisionType(tokens[0])
+		if _, ok := electronScatteringProcessTypes[collisionType]; ok && firstTarget == "electron" {
 			scanner.Scan()
 			species, outcome, _ := strings.Cut(scanner.Text(), "->")
 			species, makeInverse := strings.CutSuffix(species, "<")
@@ -163,22 +186,9 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 			}
 			scanner.Scan()
 
-			var data []CrossSectionPoint
-			for !strings.HasPrefix(scanner.Text(), "-----") {
-				crossSectionPoint := strings.Fields(scanner.Text())
-				energy, err := strconv.ParseFloat(crossSectionPoint[0], 64)
-				if err != nil {
-					return Collisions{}, err
-				}
-
-				crossSection, err := strconv.ParseFloat(crossSectionPoint[1], 64)
-				if err != nil {
-					return Collisions{}, err
-				}
-				if !(collisionType == IONIZATION || collisionType == EXCITATION || collisionType == ROTATION) || threshold < energy {
-					data = append(data, CrossSectionPoint{energy, crossSection, 0.})
-				}
-				scanner.Scan()
+			data, err := readRawCSTable(scanner, threshold)
+			if err != nil {
+				return Collisions{}, err
 			}
 
 			if (collisionType == IONIZATION || collisionType == EXCITATION || collisionType == ROTATION) && data[0].Value > 0. {
@@ -217,6 +227,46 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 					StatWeightRatio: 1. / statWeightRatio,
 				})
 			}
+		} else if _, ok := ionScatteringProcessTypes[collisionType]; ok {
+			scanner.Scan()
+			first, second, _ := strings.Cut(scanner.Text(), "/")
+			scanner.Scan()
+			parameters := strings.Fields(strings.Trim(scanner.Text(), " "))
+			massRatio, err := strconv.ParseFloat(parameters[0], 64)
+			if first != firstTarget {
+				for !strings.HasPrefix(scanner.Text(), "-----") {
+					scanner.Scan()
+				}
+				for !strings.HasPrefix(scanner.Text(), "-----") {
+					scanner.Scan()
+				}
+				break
+			}
+			info := make(map[string]string)
+			for !strings.HasPrefix(scanner.Text(), "-----") {
+				key, val, found := strings.Cut(scanner.Text(), ":")
+				if found {
+					info[strings.Trim(key, " ")] = strings.Trim(val, " ")
+				}
+				scanner.Scan()
+			}
+			scanner.Scan()
+
+			data, err := readRawCSTable(scanner, 0.)
+			if err != nil {
+				return Collisions{}, err
+			}
+			for i := 0; i+1 < len(data); i++ {
+				data[i]._NextValDiffPerEnergyDiff = (data[i+1].Value - data[i].Value) / (data[i+1].Energy - data[i].Energy)
+			}
+
+			collisions.Processes = append(collisions.Processes, Collision{
+				Type:      collisionType,
+				MassRatio: massRatio,
+				Species:   second,
+				Data:      data,
+				Info:      info,
+			})
 		}
 	}
 	if forMonteCarlo {
