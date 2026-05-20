@@ -229,11 +229,24 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 			}
 		} else if _, ok := ionScatteringProcessTypes[collisionType]; ok {
 			scanner.Scan()
-			first, second, _ := strings.Cut(scanner.Text(), "/")
+			species, outcome, _ := strings.Cut(scanner.Text(), "->")
+			species = strings.Trim(species, " ")
+			outcome = strings.Trim(outcome, " ")
+
+			firstSpecies, secondSpecies, _ := strings.Cut(species, "/")
+			firstSpecies = strings.Trim(firstSpecies, " ")
+			secondSpecies = strings.Trim(secondSpecies, " ")
 			scanner.Scan()
 			parameters := strings.Fields(strings.Trim(scanner.Text(), " "))
 			massRatio, err := strconv.ParseFloat(parameters[0], 64)
-			if first != firstTarget {
+			if err != nil {
+				return Collisions{}, err
+			}
+			speciesMass, err := strconv.ParseFloat(parameters[1], 64)
+			if err != nil {
+				return Collisions{}, err
+			}
+			if firstSpecies != firstTarget {
 				for !strings.HasPrefix(scanner.Text(), "-----") {
 					scanner.Scan()
 				}
@@ -261,11 +274,13 @@ func LoadCrossSections(fileName string, forMonteCarlo bool, totalCrossSectionEne
 			}
 
 			collisions.Processes = append(collisions.Processes, Collision{
-				Type:      collisionType,
-				MassRatio: massRatio,
-				Species:   second,
-				Data:      data,
-				Info:      info,
+				Type:        collisionType,
+				MassRatio:   massRatio,
+				Species:     secondSpecies,
+				Outcome:     outcome,
+				Data:        data,
+				Info:        info,
+				SpeciesMass: speciesMass,
 			})
 		}
 	}

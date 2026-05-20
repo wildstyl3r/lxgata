@@ -38,6 +38,7 @@ type Collision struct {
 	UpperStatWeight float64           // statistical weight of upper state of rotational process (for rotations)
 	Info            map[string]string // any additional fields found in collision description
 	Species         string            // target particle species
+	SpeciesMass     float64
 	Outcome         string
 }
 
